@@ -5,7 +5,7 @@ final class SettingsController {
     private let window: NSWindow
     private let permissions: PermissionsManager
     private let login: LoginItemManager
-    init(permissions: PermissionsManager, shortcuts: ShortcutStore, hotkeys: HotkeyManager, login: LoginItemManager, updates: UpdateManager) {
+    init(permissions: PermissionsManager, shortcuts: ShortcutStore, hotkeys: HotkeyManager, login: LoginItemManager, updates: UpdateManager, menuBarHider: MenuBarHiderController) {
         self.permissions = permissions
         self.login = login
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 560),
@@ -13,7 +13,7 @@ final class SettingsController {
         window.title = "ShimKit Settings"
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: SettingsView(preferences: .shared, permissions: permissions,
-                                                                  shortcuts: shortcuts, hotkeys: hotkeys, login: login, updates: updates))
+                                                                  shortcuts: shortcuts, hotkeys: hotkeys, login: login, updates: updates, menuBarHider: menuBarHider))
         window.center()
     }
     func show() {
@@ -31,14 +31,16 @@ private struct SettingsView: View {
     @ObservedObject var hotkeys: HotkeyManager
     @ObservedObject var login: LoginItemManager
     @ObservedObject var updates: UpdateManager
+    @ObservedObject var menuBarHider: MenuBarHiderController
     @State private var editing: WindowCommand?
     @State private var selectedTab = 0
     var body: some View {
         VStack(spacing: 12) {
             Picker("Settings section", selection: $selectedTab) {
                 Text("General").tag(0)
-                Text("Window Management").tag(1)
-                Text("Window Switcher").tag(2)
+                Text("Windows").tag(1)
+                Text("Switcher").tag(2)
+                Text("Menu Bar").tag(4)
                 Text("Permissions").tag(3)
             }.pickerStyle(.segmented).labelsHidden()
             if selectedTab == 0 {
@@ -97,6 +99,35 @@ private struct SettingsView: View {
                 Toggle("Show minimized windows", isOn: $preferences.minimized)
                 Toggle("Show application name", isOn: $preferences.appNames)
                 Toggle("Show window title", isOn: $preferences.windowTitles)
+            }.formStyle(.grouped)
+            } else if selectedTab == 4 {
+            Form {
+                Toggle("Hide menu bar icons", isOn: $preferences.menuBarHiderEnabled)
+                Section("Arrange your icons") {
+                    Text("Hold Command and drag icons to the left of the │ divider to hide them. Keep the arrow to the right of the dividers. Click the arrow to hide or reveal icons.")
+                    Text("With an always-hidden section, arrange left to right: always-hidden icons, first divider, hidden icons, second divider, arrow, visible icons.").font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Button("Show All to Arrange") { menuBarHider.arrange() }
+                        Button(menuBarHider.state == .collapsed ? "Show Hidden Icons" : "Hide Icons") { menuBarHider.toggle() }
+                    }.disabled(!preferences.menuBarHiderEnabled)
+                    if !menuBarHider.message.isEmpty { Text(menuBarHider.message).foregroundStyle(.orange) }
+                }
+                Section("Behavior") {
+                    Toggle("Hide icons when ShimKit starts", isOn: $preferences.menuBarHideOnLaunch)
+                    Toggle("Keep an always-hidden section", isOn: $preferences.menuBarAlwaysHidden)
+                    Toggle("Automatically hide after revealing", isOn: $preferences.menuBarAutoHide)
+                    Picker("Hide after", selection: $preferences.menuBarHideDelay) {
+                        Text("5 seconds").tag(5.0)
+                        Text("10 seconds").tag(10.0)
+                        Text("30 seconds").tag(30.0)
+                        Text("1 minute").tag(60.0)
+                    }.disabled(!preferences.menuBarAutoHide)
+                    Toggle("Toggle with ⌃⌥H", isOn: $preferences.menuBarHiderHotkey)
+                    if shortcuts.bindings.values.contains(Shortcut.menuBarHider) {
+                        Text("⌃⌥H is assigned to a window action. Remove that assignment to enable the menu bar shortcut.").font(.caption)
+                    }
+                }.disabled(!preferences.menuBarHiderEnabled)
+                Text("Option-click the arrow to reveal every section for arranging. Arrangement stays open until you hide it. Mouse controls need no permissions; the shortcut uses Accessibility. On smaller or notched screens, there may not be room to show every icon at once.").font(.caption).foregroundStyle(.secondary)
             }.formStyle(.grouped)
             } else {
             Form {

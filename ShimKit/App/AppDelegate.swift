@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissions = PermissionsManager()
     let shortcuts = ShortcutStore()
     let login = LoginItemManager()
+    private let menuBarHider = MenuBarHiderController()
     private let updates = UpdateManager()
     private let discovery = WindowDiscovery()
     private let history = WindowHistory()
@@ -14,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let previews = WindowPreviewProvider()
     private lazy var hotkeys = HotkeyManager(shortcuts: shortcuts)
     private lazy var switcher = WindowSwitcherController(discovery: discovery, history: history)
-    private lazy var settings = SettingsController(permissions: permissions, shortcuts: shortcuts, hotkeys: hotkeys, login: login, updates: updates)
+    private lazy var settings = SettingsController(permissions: permissions, shortcuts: shortcuts, hotkeys: hotkeys, login: login, updates: updates, menuBarHider: menuBarHider)
     private var menuBar: MenuBarController?
     private var subscriptions = Set<AnyCancellable>()
 
@@ -59,6 +60,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         shortcuts.$bindings.dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.menuBar?.rebuild() }
         }.store(in: &subscriptions)
+        menuBarHider.onSettings = { [weak self] in self?.showSettings() }
+        hotkeys.onToggleMenuBar = { [weak self] in self?.menuBarHider.toggle() }
+        menuBarHider.start()
         updates.start()
         startServices()
         if !permissions.accessibility { showSettings() }
@@ -90,5 +94,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showSettings()
         return true
     }
-    func applicationWillTerminate(_ notification: Notification) { hotkeys.stop(); previews.end() }
+    func applicationWillTerminate(_ notification: Notification) { hotkeys.stop(); previews.end(); menuBarHider.stop() }
 }

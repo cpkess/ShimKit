@@ -1,12 +1,12 @@
 # ShimKit
 
-A small, native macOS menu-bar app for managing and switching individual windows. Swift, AppKit, and a SwiftUI Settings window. Source and releases: [cpkess/ShimKit](https://github.com/cpkess/ShimKit).
+A small, native macOS menu-bar app for managing windows, switching individual windows, and hiding menu-bar icons. Swift, AppKit, and a SwiftUI Settings window. Source and releases: [cpkess/ShimKit](https://github.com/cpkess/ShimKit).
 
 Window utilities run entirely on your Mac. The only external dependency is [Sparkle](https://sparkle-project.org), used to verify and install updates from GitHub Releases. No accounts, analytics, system profiling, or window-content uploads. Sparkle’s license and third-party notices are bundled in the app and in `Resources/Sparkle-LICENSE.txt`. Release-note web views are disabled.
 
 ## Why ShimKit exists
 
-ShimKit is intended to consolidate small everyday macOS utilities into one extremely lightweight native application. Version 0.1 focuses on window positioning and window switching, with shared system services and two small modules.
+ShimKit is intended to consolidate small everyday macOS utilities into one extremely lightweight native application. Window positioning, window switching, and menu-bar organization share a small native app.
 
 ## Features
 
@@ -15,6 +15,7 @@ ShimKit is intended to consolidate small everyday macOS utilities into one extre
 - Option+Tab switches individual windows in observed most-recently-used order. Hold Option, repeat Tab, use Shift+Tab to reverse, and release Option to activate. Escape cancels; arrows navigate; Return or a click selects.
 - Command+` opens the same switcher scoped to the frontmost application. Hold Command and repeat ` to cycle, add Shift to reverse, and release Command to activate. The window list stays fixed while cycling.
 - Native nonactivating material panel with icons, app names, window titles, minimized indicators, and optional still previews.
+- Collapsible menu-bar icons with Command-drag dividers, an optional always-hidden section, automatic hiding, and Control+Option+H.
 - Editable window-manager shortcuts, module toggles, visibility preferences, and native launch-at-login registration.
 - Automatic update checks and installation through GitHub Releases, with signed update feeds and archives. Manual Check for Updates is available in Settings and the menu bar.
 - Menu-bar-only by default. Reopen the app in Finder to recover Settings if both the menu-bar and Dock icons are hidden.
@@ -30,8 +31,24 @@ ShimKit is intended to consolidate small everyday macOS utilities into one extre
 | Center | Control+Option+C |
 | Window Switcher | Option+Tab; Shift reverses |
 | Current application windows | Command+backtick (`); Shift reverses |
+| Show / hide menu-bar icons | Control+Option+H (when enabled) |
 
 All positioning commands are available from the menu and can be assigned shortcuts in Settings. Letter shortcuts use physical US keyboard positions. Window-switcher activation is fixed at Option+Tab (all apps) and Command+backtick (current app); both bindings use the shared shortcut model. These combinations and their Shift variants are reserved for switching.
+
+## Menu-bar organization
+
+Enable **Settings → Menu Bar → Hide menu bar icons**. The module is off by default and initially opens in arrangement mode:
+
+1. Hold Command and drag icons to the left of the **│** divider. Keep the arrow to its right.
+2. Click the arrow to hide those icons; click again to reveal them. Right-click for Settings and arrangement controls.
+3. Optionally enable **Keep an always-hidden section**. Arrange left to right: always-hidden icons, first divider, ordinary hidden icons, second divider, arrow, visible icons.
+4. Option-click the arrow or choose **Show All to Arrange** to reveal both sections. This stays open until you click Hide Icons, so auto-hide cannot interrupt arrangement.
+
+Auto-hide defaults to 10 seconds after revealing, with 5, 30, and 60 second options. It waits while the pointer is in the menu bar, a mouse button is held, or AppKit is tracking a menu. Launch hiding can be disabled. Disabling the module or quitting restores the space occupied by both dividers. Display changes reveal all icons for safe rearrangement. macOS saves divider positions.
+
+Mouse controls need no Accessibility or Screen Recording access. Control+Option+H uses the existing Accessibility-authorized keyboard service; if a saved window action uses this shortcut, that action retains it and Settings explains the conflict. The hider arrow remains available independently of the main ShimKit menu-bar icon.
+
+This is an independent implementation of the core behavior popularized by [Hidden Bar](https://github.com/dwarvesf/hidden), using public AppKit status items. macOS does not expose a public API to hide another app's icon: wide divider items move icons offscreen. Small/notched displays may lack space to reveal all icons, and future macOS menu-bar changes can affect this technique. Use one menu-bar hiding utility at a time. No icons are moved between groups automatically.
 
 ## Installing the app
 
@@ -86,6 +103,7 @@ The package executable is useful for compilation, but run the `.app` bundle for 
 - `Core/Permissions/` and `Core/Preferences/`: authorization, UserDefaults, and ServiceManagement.
 - `Core/Updates/`: Sparkle lifecycle and observable Settings bindings.
 - `Modules/WindowManager/`: positioning, cycle state, per-window restoration.
+- `Modules/MenuBarHider/`: movable status-item dividers, layout safety checks, and a one-shot auto-hide timer active only while expanded.
 - `Modules/WindowSwitcher/`: session selection and the AppKit panel. Its snapshot stays stable while cycling.
 - `UI/Settings/`: native preference forms and shortcut editor.
 
@@ -105,7 +123,7 @@ Geometry uses Accessibility's global top-left coordinate space, in points. `NSSc
 
 ## Validation
 
-`swift test` covers all geometry layouts at zero, negative, and displaced origins, AppKit/AX conversion, display choice/transfers, oversize centering, cycle reset/wrap, MRU pruning, selection wrap, shortcut serialization/matching, app-scoped window filtering, modifier-release behavior, and native panel scrolling/card cleanup. The panel test requires a logged-in graphical session and skips when no display is available.
+`swift test` covers all geometry layouts at zero, negative, and displaced origins, AppKit/AX conversion, display choice/transfers, oversize centering, cycle reset/wrap, MRU pruning, selection wrap, shortcut serialization/matching, app-scoped window filtering, modifier-release behavior, native panel scrolling/card cleanup, menu-bar divider ordering, spacer sizing, and preference persistence. The panel test requires a logged-in graphical session and skips when no display is available.
 
 Manual checks on a permission-authorized build:
 

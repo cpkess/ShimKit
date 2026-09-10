@@ -7,6 +7,7 @@ final class HotkeyManager: ObservableObject {
     private var source: CFRunLoopSource?
     private var swallowed = Set<UInt16>()
     let shortcuts: ShortcutStore
+    var onToggleMenuBar: (() -> Void)?
     var onCommand: ((WindowCommand) -> Void)?
     var onSwitch: ((Bool, WindowSwitcherScope?) -> Void)?
     var onCommit: (() -> Void)?
@@ -78,6 +79,15 @@ final class HotkeyManager: ObservableObject {
             // Never perform synchronous cross-process AX calls inside the event-tap callback.
             if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
                 DispatchQueue.main.async { [weak self] in self?.onCommand?(command) }
+            }
+            swallowed.insert(code)
+            return nil
+        }
+        if Preferences.shared.menuBarHiderEnabled, Preferences.shared.menuBarHiderHotkey,
+           !shortcuts.bindings.values.contains(Shortcut.menuBarHider),
+           Shortcut.menuBarHider.matches(code: code, flags: flags) {
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                DispatchQueue.main.async { [weak self] in self?.onToggleMenuBar?() }
             }
             swallowed.insert(code)
             return nil

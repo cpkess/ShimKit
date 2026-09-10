@@ -13,8 +13,24 @@ final class Preferences: ObservableObject {
     @Published var appNames: Bool { didSet { defaults.set(appNames, forKey: "appNames") } }
     @Published var windowTitles: Bool { didSet { defaults.set(windowTitles, forKey: "windowTitles") } }
 
+    @Published var menuBarHideOnLaunch: Bool { didSet { defaults.set(menuBarHideOnLaunch, forKey: "menuBarHideOnLaunch") } }
+    @Published var menuBarHiderEnabled: Bool { didSet { defaults.set(menuBarHiderEnabled, forKey: "menuBarHiderEnabled") } }
+    @Published var menuBarAlwaysHidden: Bool { didSet { defaults.set(menuBarAlwaysHidden, forKey: "menuBarAlwaysHidden") } }
+    @Published var menuBarAutoHide: Bool { didSet { defaults.set(menuBarAutoHide, forKey: "menuBarAutoHide") } }
+    @Published var menuBarHideDelay: Double { didSet { defaults.set(menuBarHideDelay, forKey: "menuBarHideDelay") } }
+    @Published var menuBarHiderHotkey: Bool { didSet { defaults.set(menuBarHiderHotkey, forKey: "menuBarHiderHotkey") } }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        defaults.register(defaults: ["menuBarHideOnLaunch": true])
+        menuBarHideOnLaunch = defaults.bool(forKey: "menuBarHideOnLaunch")
+        defaults.register(defaults: ["menuBarHiderEnabled": false, "menuBarAlwaysHidden": false, "menuBarAutoHide": true, "menuBarHideDelay": 10, "menuBarHiderHotkey": true])
+        menuBarHiderEnabled = defaults.bool(forKey: "menuBarHiderEnabled")
+        menuBarAlwaysHidden = defaults.bool(forKey: "menuBarAlwaysHidden")
+        menuBarAutoHide = defaults.bool(forKey: "menuBarAutoHide")
+        menuBarHideDelay = defaults.double(forKey: "menuBarHideDelay")
+        menuBarHiderHotkey = defaults.bool(forKey: "menuBarHiderHotkey")
+
         defaults.register(defaults: ["showMenuBar": true, "showDock": false,
             "managerEnabled": true, "switcherEnabled": true, "previews": false,
             "minimized": true, "appNames": true, "windowTitles": true])
