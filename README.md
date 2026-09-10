@@ -143,7 +143,7 @@ Version 0.2.0 is the first updater-enabled build. Install it manually once into 
 - Downloads: immutable, versioned GitHub release assets, not source archives.
 - Sparkle 2.9.6, pinned in both the Swift package and Xcode project.
 - Ed25519 verification for both the feed and the archive, with verification before extraction.
-- Developer ID signing, with optional local notarization using a saved `notarytool` profile.
+- Developer ID signing and mandatory Apple notarization using a saved `notarytool` profile.
 
 Automatic checks and automatic downloads/installation default to enabled. Both can be changed under General → Updates. Sparkle controls scheduling, installer prompts, application replacement, and relaunch. Normal GitHub HTTPS requests reveal connection metadata such as IP address and the updater's user agent to GitHub; no window content or system profile is included. Turning off automatic checks leaves only explicit manual checks.
 
@@ -155,9 +155,15 @@ To publish a release from the maintainer's Mac:
 2. Commit and push to `origin/main`. Run `python3 scripts/generate-project.py` if sources changed.
 3. Run `python3 scripts/release.py --publish --notary-profile YOUR_SAVED_PROFILE`.
 
-The script tests, archives, exports with Developer ID signing (including Sparkle's helpers), notarizes and staples when a profile is supplied, generates and verifies the signed appcast, then uploads a draft containing both assets before publishing it as the latest release. It rejects dirty/unpushed sources, the wrong repository, changed signing configuration, and non-increasing build numbers. No automatic release is triggered by an ordinary source push.
+The script tests, archives, exports with Developer ID signing (including Sparkle's helpers), requires Apple to accept notarization, staples and validates the ticket, and checks Gatekeeper. It then generates and verifies the signed appcast and uploads a draft containing both assets before publishing it as the latest release. It rejects dirty/unpushed sources, the wrong repository, changed signing configuration, and non-increasing build numbers. No automatic release is triggered by an ordinary source push.
 
-Use `python3 scripts/release.py` to prepare a signed local release without publishing. For a deliberate development release without notarization, `--publish --allow-unnotarized` is supported; its GitHub release notes disclose this limitation. Such downloads may need explicit macOS approval on first launch. Prefer notarized releases for distribution.
+Use `python3 scripts/release.py` to prepare a signed, notarized local release without publishing. Notarization is mandatory; there is no unnotarized release override. The default Keychain profile is `ShimKit`, overridable with `--notary-profile` or `SHIMKIT_NOTARY_PROFILE`. Set it up once in Terminal:
+
+```sh
+xcrun notarytool store-credentials "ShimKit" --team-id "WZJ4ZPRH72"
+```
+
+Enter the Apple ID and an Apple app-specific password at the interactive prompts. Credentials remain in the local Keychain. The script checks authentication before building, verifies the expected Developer ID identity, hardened runtime and secure timestamp, and refuses publication unless notarization returns `Accepted`, stapling succeeds, and Gatekeeper accepts the app. Versions through 0.3.1 were signed but unnotarized. Managed work Macs can still require employer approval even for notarized apps.
 
 GitHub Actions runs Swift tests, release-tool tests, generated-project validation, and an unsigned universal app compilation on pushes and pull requests. It does not receive signing credentials. This keeps public contribution builds separate from the local signing/publishing step.
 

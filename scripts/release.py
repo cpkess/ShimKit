@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build, sign, optionally notarize, and publish a GitHub-hosted Sparkle update.
+"""Build, sign, notarize, and publish a GitHub-hosted Sparkle update.
 
 Signing keys stay in the local login Keychain. This script never exports them.
 """
@@ -64,16 +64,30 @@ def validate_appcast(path, version, build, archive):
         raise ValueError("Update archive signature is missing")
 
 
+def validate_signature(description):
+    required = ["Authority=Developer ID Application: Gamergrams LLC (WZJ4ZPRH72)",
+                "TeamIdentifier=WZJ4ZPRH72", "Timestamp=", "(runtime)"]
+    if not all(value in description for value in required):
+        raise ValueError("Release requires the expected Developer ID, secure timestamp, and hardened runtime")
+
+
+def validate_notarization(result):
+    if result.get("status") != "Accepted":
+        raise ValueError(f"Apple has not accepted this release: {result.get('status', 'missing status')} (submission {result.get('id', 'unknown')})")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--publish", action="store_true", help="Publish to GitHub after validation; otherwise prepare locally")
-    parser.add_argument("--notary-profile", default=os.getenv("SHIMKIT_NOTARY_PROFILE"), help="Existing notarytool Keychain profile")
-    parser.add_argument("--allow-unnotarized", action="store_true", help="Explicitly allow publishing a development release without notarization")
+    parser.add_argument("--notary-profile", default=os.getenv("SHIMKIT_NOTARY_PROFILE") or "ShimKit", help="Notarytool Keychain profile (default: ShimKit)")
     parser.add_argument("--derived-data", type=Path, default=Path(tempfile.gettempdir()) / "ShimKitDerivedData")
     parser.add_argument("--sparkle-tools", type=Path, help="Sparkle bin directory; by default use the resolved package artifacts")
     args = parser.parse_args()
-    if args.publish and not args.notary_profile and not args.allow_unnotarized:
-        parser.error("Publishing requires --notary-profile or explicit --allow-unnotarized for a development release")
+    if not args.notary_profile:
+        parser.error("A notarization Keychain profile is required")
+    # Fail before building if Apple credentials are missing or no longer valid.
+    run("xcrun", "notarytool", "history", "--keychain-profile", args.notary_profile,
+        "--output-format", "json", capture_output=True, text=True)
     if args.publish:
         if run("git", "status", "--porcelain", capture_output=True, text=True).stdout.strip():
             parser.error("Commit all source changes before publishing")
@@ -99,6 +113,8 @@ def main():
         "-exportPath", export_path, "-exportOptionsPlist", ROOT / "Resources/ExportOptions.plist")
     app = export_path / "ShimKit.app"
     run("codesign", "--verify", "--deep", "--strict", app)
+    description = run("codesign", "-dv", "--verbose=4", app, capture_output=True, text=True).stderr
+    validate_signature(description)
     with (app / "Contents/Info.plist").open("rb") as file:
         info = plistlib.load(file)
     version, build = validate_metadata(info)
@@ -127,12 +143,15 @@ def main():
         stage = Path(folder)
         zip_path = stage / f"ShimKit-{version}.zip"
         run("ditto", "-c", "-k", "--keepParent", "--norsrc", "--noextattr", app, zip_path)
-        if args.notary_profile:
-            run("xcrun", "notarytool", "submit", zip_path, "--keychain-profile", args.notary_profile, "--wait")
-            run("xcrun", "stapler", "staple", app)
-            run("xcrun", "stapler", "validate", app)
-            run("spctl", "--assess", "--type", "execute", app)
-            run("ditto", "-c", "-k", "--keepParent", "--norsrc", "--noextattr", app, zip_path)
+        submission = run("xcrun", "notarytool", "submit", zip_path, "--keychain-profile", args.notary_profile,
+                         "--wait", "--output-format", "json", capture_output=True, text=True)
+        result = json.loads(submission.stdout)
+        print(f"Notarization: {result.get('status')} (submission {result.get('id')})", flush=True)
+        validate_notarization(result)
+        run("xcrun", "stapler", "staple", app)
+        run("xcrun", "stapler", "validate", app)
+        run("spctl", "--assess", "--type", "execute", "--verbose=2", app)
+        run("ditto", "-c", "-k", "--keepParent", "--norsrc", "--noextattr", app, zip_path)
         run(tools / "generate_appcast", "--account", SIGNING_ACCOUNT,
             "--download-url-prefix", f"https://github.com/{REPO}/releases/download/v{version}/",
             "--maximum-deltas", "0", "--maximum-versions", "1", "--link", f"https://github.com/{REPO}", stage)
@@ -150,8 +169,7 @@ def main():
         notes.write_text(f"ShimKit {version} (build {build})\n\n"
             "Install ShimKit.app in /Applications. Versions before 0.2.0 require a one-time manual update. "
             "Future releases are checked and verified by Sparkle through GitHub Releases.\n\n"
-            + ("Developer ID signed and notarized.\n" if args.notary_profile else
-               "Development release: Developer ID signed, but not notarized. macOS may require explicit approval on first launch.\n"))
+            "Developer ID signed and notarized by Apple, with the notarization ticket stapled to the app.\n")
         if args.publish:
             # Upload both assets to a draft before making the feed visible via /latest/download/.
             run("gh", "release", "create", f"v{version}", str(destination / zip_path.name), str(destination / feed.name),

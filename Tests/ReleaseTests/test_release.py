@@ -16,6 +16,20 @@ class ReleaseTests(unittest.TestCase):
             self.info = plistlib.load(file)
         self.info["CFBundleIdentifier"] = "com.shimkit.app"
 
+    def test_requires_expected_developer_id_timestamp_and_runtime(self):
+        valid = "Authority=Developer ID Application: Gamergrams LLC (WZJ4ZPRH72)\nTeamIdentifier=WZJ4ZPRH72\nTimestamp=Sep 10, 2026\nflags=0x10000(runtime)"
+        release.validate_signature(valid)
+        for value in ["Authority=Developer ID Application: Gamergrams LLC (WZJ4ZPRH72)",
+                      "TeamIdentifier=WZJ4ZPRH72", "Timestamp=", "(runtime)"]:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                release.validate_signature(valid.replace(value, ""))
+
+    def test_notarization_must_be_explicitly_accepted(self):
+        release.validate_notarization({"id": "submission", "status": "Accepted"})
+        for status in ["Invalid", "Rejected", "In Progress", None]:
+            with self.subTest(status=status), self.assertRaises(ValueError):
+                release.validate_notarization({"id": "submission", "status": status})
+
     def test_release_metadata_and_matching_tag(self):
         version, build = release.validate_metadata(self.info)
         self.assertGreater(build, 2)
