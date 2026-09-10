@@ -11,6 +11,7 @@ final class WindowSwitcherController {
     private var globalClickMonitor: Any?
     private(set) var activeScope: WindowSwitcherScope?
     var isVisible: Bool { activeScope != nil }
+    var previewsFor: (([WindowInfo]) -> [WindowKey: NSImage])?
     var onPresent: (([WindowInfo]) -> Void)?
     var onDismiss: (() -> Void)?
 
@@ -45,8 +46,13 @@ final class WindowSwitcherController {
             if let self, event.window !== self.panel { self.cancel() }
             return event
         }
-        panel.present(sessionWindows, selected: selection.index, screen: screen)
-        onPresent?(sessionWindows)
+        let cached = previewsFor?(sessionWindows) ?? [:]
+        panel.present(sessionWindows, selected: selection.index, screen: screen, previewFor: { cached[$0] }, applicationOnly: scope == .currentApplication)
+        var previewOrder = sessionWindows
+        if previewOrder.indices.contains(selection.index) {
+            previewOrder.insert(previewOrder.remove(at: selection.index), at: 0)
+        }
+        onPresent?(previewOrder)
         discovery.refresh()
     }
     func commit() {

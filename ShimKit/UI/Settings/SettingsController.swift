@@ -93,6 +93,7 @@ private struct SettingsView: View {
                 Text("Hold Option and press Tab for all windows, or hold Command and press ` for windows of the frontmost app. Add Shift to reverse. Release the held modifier to switch. Escape cancels; arrow keys navigate; Return selects.")
                     .foregroundStyle(.secondary)
                 Toggle("Show window previews", isOn: $preferences.previews)
+                Text("Previews are prepared when windows change and kept in memory for instant display. The last snapshot appears first, then refreshes. New windows need an initial capture.").font(.caption).foregroundStyle(.secondary)
                 if preferences.previews && !permissions.screenRecording {
                     Text("Previews need Screen Recording permission. Icons and titles work without it.").font(.caption)
                 }
@@ -138,7 +139,7 @@ private struct SettingsView: View {
                 }
                 Section("Screen Recording — optional") {
                     Label(permissions.screenRecording ? "Access granted" : "Not enabled", systemImage: permissions.screenRecording ? "checkmark.circle.fill" : "circle")
-                    Text("Used only for still previews while the switcher is open. Window switching works without this permission.")
+                    Text("Used to prepare window previews and cache them in memory so they appear immediately. Images are never saved to disk. Window switching works without this permission.")
                     Button("Enable Window Previews…") { permissions.requestScreenRecording() }
                     Text("macOS may require quitting and reopening ShimKit after permission changes.").font(.caption).foregroundStyle(.secondary)
                 }

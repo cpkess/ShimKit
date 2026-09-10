@@ -43,12 +43,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         discovery.onChange = { [weak self] windows in
             self?.history.synchronizeWindows(windows)
             self?.manager.prune(liveWindows: windows)
+            self?.previews.prepare(windows: self?.history.ordered(windows) ?? windows)
         }
         hotkeys.onCommand = { [weak self] in self?.manager.perform($0) }
         hotkeys.onSwitch = { [weak self] backwards, scope in self?.switcher.advance(backwards: backwards, scope: scope) }
         hotkeys.onCommit = { [weak self] in self?.switcher.commit() }
         hotkeys.onCancel = { [weak self] in self?.switcher.cancel() }
         hotkeys.activeSwitcherScope = { [weak self] in self?.switcher.activeScope }
+        switcher.previewsFor = { [weak self] in self?.previews.cachedImages(for: $0) ?? [:] }
         switcher.onPresent = { [weak self] windows in
             self?.previews.begin(windows: windows) { [weak self] key, image in self?.switcher.setPreview(image, for: key) }
         }
@@ -56,13 +58,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissions.onAccessibilityGranted = { [weak self] in self?.startServices() }
         preferences.$showDock.sink { NSApp.setActivationPolicy($0 ? .regular : .accessory) }.store(in: &subscriptions)
         preferences.$showMenuBar.sink { [weak self] in self?.menuBar?.setVisible($0) }.store(in: &subscriptions)
-        preferences.$switcherEnabled.sink { [weak self] enabled in if !enabled { self?.switcher.cancel() } }.store(in: &subscriptions)
+        preferences.$switcherEnabled.sink { [weak self] enabled in if !enabled { self?.switcher.cancel(); self?.previews.clear() } }.store(in: &subscriptions)
         shortcuts.$bindings.dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.menuBar?.rebuild() }
         }.store(in: &subscriptions)
         menuBarHider.onSettings = { [weak self] in self?.showSettings() }
         hotkeys.onToggleMenuBar = { [weak self] in self?.menuBarHider.toggle() }
         menuBarHider.start()
+        preferences.$previews.dropFirst().sink { [weak self] enabled in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if enabled { self.previews.prepare(windows: self.history.ordered(self.discovery.windows)) }
+                else { self.previews.clear(); self.switcher.cancel() }
+            }
+        }.store(in: &subscriptions)
         updates.start()
         startServices()
         if !permissions.accessibility { showSettings() }
