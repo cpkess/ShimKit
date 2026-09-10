@@ -1,0 +1,28 @@
+name: Build and test
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Test Swift logic and native panel
+        run: swift test
+      - name: Test release validation
+        run: python3 -m unittest discover -s Tests/ReleaseTests -v
+      - name: Verify generated Xcode project is current
+        run: |
+          python3 scripts/generate-project.py
+          git diff --exit-code -- ShimKit.xcodeproj
+      - name: Compile universal app without accessing signing credentials
+        run: >-
+          xcodebuild -project ShimKit.xcodeproj -scheme ShimKit -configuration Release
+          -derivedDataPath "$RUNNER_TEMP/ShimKitDerivedData" CODE_SIGNING_ALLOWED=NO build
