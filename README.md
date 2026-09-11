@@ -62,7 +62,7 @@ This is an independent implementation of the core behavior popularized by [Hidde
 
 ## Installing the app
 
-Unzip the release, then move **ShimKit.app to `/Applications` before opening it or granting permissions**. Run that copy rather than an app inside this repository, a temporary build directory, or a cloud-synced Documents/Desktop folder. File-provider metadata can invalidate the app signature.
+Download **ShimKit-VERSION.dmg** from GitHub Releases, open it, and drag **ShimKit.app onto the Applications shortcut**. Open ShimKit from `/Applications`, then eject the disk image. Install before granting permissions. The app and disk image are both signed and notarized; the ZIP asset is reserved for Sparkle automatic updates. Run that copy rather than an app inside this repository, a temporary build directory, or a cloud-synced Documents/Desktop folder. File-provider metadata can invalidate the app signature.
 
 If macOS Settings shows permission enabled but ShimKit still reports access needed:
 
@@ -165,7 +165,7 @@ To publish a release from the maintainer's Mac:
 2. Commit and push to `origin/main`. Run `python3 scripts/generate-project.py` if sources changed.
 3. Run `python3 scripts/release.py --publish --notary-profile YOUR_SAVED_PROFILE`.
 
-The script tests, archives, exports with Developer ID signing (including Sparkle's helpers), requires Apple to accept notarization, staples and validates the ticket, and checks Gatekeeper. It then generates and verifies the signed appcast and uploads a draft containing both assets before publishing it as the latest release. It rejects dirty/unpushed sources, the wrong repository, changed signing configuration, and non-increasing build numbers. No automatic release is triggered by an ordinary source push.
+The script tests, archives, exports with Developer ID signing (including Sparkle's helpers), requires Apple to accept notarization, staples and validates the ticket, and checks Gatekeeper. It then generates and verifies the signed appcast and builds a compressed, signed, notarized DMG with an Applications shortcut for manual installs. It verifies the mounted app and uploads a draft containing the DMG, update ZIP, and signed appcast before publishing it as the latest release. It rejects dirty/unpushed sources, the wrong repository, changed signing configuration, and non-increasing build numbers. No automatic release is triggered by an ordinary source push.
 
 Use `python3 scripts/release.py` to prepare a signed, notarized local release without publishing. Notarization is mandatory; there is no unnotarized release override. The default Keychain profile is `ShimKit`, overridable with `--notary-profile` or `SHIMKIT_NOTARY_PROFILE`. Set it up once in Terminal:
 
@@ -173,7 +173,7 @@ Use `python3 scripts/release.py` to prepare a signed, notarized local release wi
 xcrun notarytool store-credentials "ShimKit" --team-id "WZJ4ZPRH72"
 ```
 
-Enter the Apple ID and an Apple app-specific password at the interactive prompts. Credentials remain in the local Keychain. The script checks authentication before building, verifies the expected Developer ID identity, hardened runtime and secure timestamp, and refuses publication unless notarization returns `Accepted`, stapling succeeds, and Gatekeeper accepts the app. Versions through 0.3.1 were signed but unnotarized. Managed work Macs can still require employer approval even for notarized apps.
+Enter the Apple ID and an Apple app-specific password at the interactive prompts. Credentials remain in the local Keychain. DMG creation uses native `hdiutil` without additional dependencies. The script checks authentication before building, verifies the expected Developer ID identity, hardened runtime and secure timestamp, and refuses publication unless notarization returns `Accepted`, stapling succeeds, and Gatekeeper accepts the app. Versions through 0.3.1 were signed but unnotarized. Managed work Macs can still require employer approval even for notarized apps.
 
 GitHub Actions runs Swift tests, release-tool tests, generated-project validation, and an unsigned universal app compilation on pushes and pull requests. It does not receive signing credentials. This keeps public contribution builds separate from the local signing/publishing step.
 

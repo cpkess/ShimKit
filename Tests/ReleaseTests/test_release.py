@@ -30,6 +30,25 @@ class ReleaseTests(unittest.TestCase):
             with self.subTest(status=status), self.assertRaises(ValueError):
                 release.validate_notarization({"id": "submission", "status": status})
 
+    def test_dmg_requires_app_correct_version_and_applications_shortcut(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mount = Path(directory)
+            contents = mount / "ShimKit.app/Contents"
+            contents.mkdir(parents=True)
+            with (contents / "Info.plist").open("wb") as file:
+                plistlib.dump(self.info, file)
+            version, build = release.validate_metadata(self.info)
+            with self.assertRaises(ValueError):
+                release.validate_dmg_contents(mount, version, build)
+            (mount / "Applications").symlink_to("/tmp")
+            with self.assertRaises(ValueError):
+                release.validate_dmg_contents(mount, version, build)
+            (mount / "Applications").unlink()
+            (mount / "Applications").symlink_to("/Applications")
+            self.assertEqual(release.validate_dmg_contents(mount, version, build), mount / "ShimKit.app")
+            with self.assertRaises(ValueError):
+                release.validate_dmg_contents(mount, version, build + 1)
+
     def test_release_metadata_and_matching_tag(self):
         version, build = release.validate_metadata(self.info)
         self.assertGreater(build, 2)

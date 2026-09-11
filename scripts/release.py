@@ -76,6 +76,62 @@ def validate_notarization(result):
         raise ValueError(f"Apple has not accepted this release: {result.get('status', 'missing status')} (submission {result.get('id', 'unknown')})")
 
 
+def notarize(path, profile):
+    submission = run("xcrun", "notarytool", "submit", path, "--keychain-profile", profile,
+                     "--wait", "--output-format", "json", capture_output=True, text=True)
+    result = json.loads(submission.stdout)
+    print(f"Notarization ({path.name}): {result.get('status')} (submission {result.get('id')})", flush=True)
+    validate_notarization(result)
+
+
+def validate_dmg_contents(mount, version, build):
+    app = mount / "ShimKit.app"
+    applications = mount / "Applications"
+    if not app.is_dir() or not applications.is_symlink() or os.readlink(applications) != "/Applications":
+        raise ValueError("DMG must contain ShimKit.app and a shortcut to /Applications")
+    with (app / "Contents/Info.plist").open("rb") as file:
+        info = plistlib.load(file)
+    if validate_metadata(info) != (version, build):
+        raise ValueError("DMG contains the wrong app version")
+    return app
+
+
+def create_dmg(app, destination, profile, version, build):
+    with tempfile.TemporaryDirectory(prefix="shimkit-dmg-") as folder:
+        root = Path(folder)
+        contents = root / "contents"
+        contents.mkdir()
+        run("ditto", "--norsrc", "--noextattr", app, contents / "ShimKit.app")
+        (contents / "Applications").symlink_to("/Applications", target_is_directory=True)
+        (contents / "Install ShimKit.txt").write_text(
+            "Install ShimKit\n\n"
+            "1. Quit ShimKit if it is already running.\n"
+            "2. Drag ShimKit.app onto the Applications shortcut in this window.\n"
+            "3. Open ShimKit from Applications, then eject this disk image.\n\n"
+            "Grant Accessibility access to the copy in Applications when prompted.\n"
+            "Window previews optionally require Screen Recording permission.\n"
+            "Future updates are available through ShimKit > Check for Updates.\n")
+        run("hdiutil", "create", "-volname", "ShimKit", "-fs", "HFS+", "-format", "UDZO",
+            "-srcfolder", contents, destination)
+        run("codesign", "--sign", "Developer ID Application: Gamergrams LLC (WZJ4ZPRH72)",
+            "--timestamp", "--identifier", "com.shimkit.installer", destination)
+        run("codesign", "--verify", "--strict", destination)
+        notarize(destination, profile)
+        run("xcrun", "stapler", "staple", destination)
+        run("xcrun", "stapler", "validate", destination)
+        run("spctl", "--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=2", destination)
+        mount = root / "mounted"
+        mount.mkdir()
+        run("hdiutil", "attach", "-readonly", "-nobrowse", "-mountpoint", mount, destination)
+        try:
+            packaged_app = validate_dmg_contents(mount, version, build)
+            run("codesign", "--verify", "--deep", "--strict", packaged_app)
+            run("xcrun", "stapler", "validate", packaged_app)
+            run("spctl", "--assess", "--type", "execute", packaged_app)
+        finally:
+            run("hdiutil", "detach", mount)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--publish", action="store_true", help="Publish to GitHub after validation; otherwise prepare locally")
@@ -143,11 +199,7 @@ def main():
         stage = Path(folder)
         zip_path = stage / f"ShimKit-{version}.zip"
         run("ditto", "-c", "-k", "--keepParent", "--norsrc", "--noextattr", app, zip_path)
-        submission = run("xcrun", "notarytool", "submit", zip_path, "--keychain-profile", args.notary_profile,
-                         "--wait", "--output-format", "json", capture_output=True, text=True)
-        result = json.loads(submission.stdout)
-        print(f"Notarization: {result.get('status')} (submission {result.get('id')})", flush=True)
-        validate_notarization(result)
+        notarize(zip_path, args.notary_profile)
         run("xcrun", "stapler", "staple", app)
         run("xcrun", "stapler", "validate", app)
         run("spctl", "--assess", "--type", "execute", "--verbose=2", app)
@@ -165,14 +217,21 @@ def main():
         destination.mkdir(parents=True, exist_ok=True)
         run("ditto", zip_path, destination / zip_path.name)
         run("ditto", feed, destination / feed.name)
+        # Keep the manual-install DMG outside the appcast staging folder so
+        # Sparkle consistently selects the ZIP for automatic updates.
+        dmg = destination / f"ShimKit-{version}.dmg"
+        if dmg.exists():
+            dmg.unlink()
+        create_dmg(app, dmg, args.notary_profile, version, build)
         notes = destination / "release-notes.md"
         notes.write_text(f"ShimKit {version} (build {build})\n\n"
-            "Install ShimKit.app in /Applications. Versions before 0.2.0 require a one-time manual update. "
+            f"Manual installation: download ShimKit-{version}.dmg, open it, drag ShimKit.app onto Applications, then eject the disk image. "
+            "Versions before 0.2.0 require a one-time manual update. "
             "Future releases are checked and verified by Sparkle through GitHub Releases.\n\n"
-            "Developer ID signed and notarized by Apple, with the notarization ticket stapled to the app.\n")
+            "The app and DMG are Developer ID signed and notarized by Apple, with stapled notarization tickets. The ZIP asset is used by automatic updates.\n")
         if args.publish:
-            # Upload both assets to a draft before making the feed visible via /latest/download/.
-            run("gh", "release", "create", f"v{version}", str(destination / zip_path.name), str(destination / feed.name),
+            # Upload all assets to a draft before making the feed visible via /latest/download/.
+            run("gh", "release", "create", f"v{version}", str(dmg), str(destination / zip_path.name), str(destination / feed.name),
                 "--repo", REPO, "--target", head, "--title", f"ShimKit {version}", "--notes-file", notes, "--draft")
             run("gh", "release", "edit", f"v{version}", "--repo", REPO, "--draft=false", "--latest")
         print(f"Prepared release: {destination}")
