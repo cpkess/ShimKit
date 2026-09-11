@@ -4,11 +4,12 @@ struct Shortcut: Codable, Equatable, Hashable {
     let keyCodes: [UInt16]
     var keyCode: UInt16 { keyCodes[0] }
     init(keyCode: UInt16, modifiers: UInt64) { self.keyCodes = [keyCode]; self.modifiers = modifiers }
-    init(keyCodes: [UInt16], modifiers: UInt64) { self.keyCodes = keyCodes; self.modifiers = modifiers }
+    init(keyCodes: [UInt16], modifiers: UInt64) { self.keyCodes = Array(Set(keyCodes)).sorted(); self.modifiers = modifiers }
     private enum CodingKeys: String, CodingKey { case keyCode, keyCodes, modifiers }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        keyCodes = try container.decodeIfPresent([UInt16].self, forKey: .keyCodes) ?? [container.decode(UInt16.self, forKey: .keyCode)]
+        let decoded = try container.decodeIfPresent([UInt16].self, forKey: .keyCodes) ?? [container.decode(UInt16.self, forKey: .keyCode)]
+        keyCodes = Array(Set(decoded)).sorted()
         modifiers = try container.decode(UInt64.self, forKey: .modifiers)
         guard (1...4).contains(keyCodes.count) else {
             throw DecodingError.dataCorruptedError(forKey: .keyCodes, in: container, debugDescription: "Shortcuts need one to four keys")
@@ -19,8 +20,8 @@ struct Shortcut: Codable, Equatable, Hashable {
         try container.encode(keyCodes, forKey: .keyCodes)
         try container.encode(modifiers, forKey: .modifiers)
     }
-    func overlapsPrefix(with other: Shortcut) -> Bool {
-        modifiers == other.modifiers && (keyCodes.starts(with: other.keyCodes) || other.keyCodes.starts(with: keyCodes))
+    func overlapsKeys(with other: Shortcut) -> Bool {
+        modifiers == other.modifiers && (Set(keyCodes).isSubset(of: Set(other.keyCodes)) || Set(other.keyCodes).isSubset(of: Set(keyCodes)))
     }
     let modifiers: UInt64
     static let relevantFlags: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand]
@@ -32,7 +33,7 @@ struct Shortcut: Codable, Equatable, Hashable {
         if flags.contains(.maskAlternate) { text += "⌥" }
         if flags.contains(.maskShift) { text += "⇧" }
         if flags.contains(.maskCommand) { text += "⌘" }
-        return text + keyCodes.map { code in Self.keys.first { $0.code == code }?.label ?? "Key \(code)" }.joined(separator: ", ")
+        return text + keyCodes.map { code in Self.keys.first { $0.code == code }?.label ?? "Key \(code)" }.joined(separator: " + ")
     }
     var keyEquivalent: String { guard keyCodes.count == 1 else { return "" }; return Self.keys.first { $0.code == keyCode }?.equivalent ?? "" }
     func matches(code: UInt16, flags: CGEventFlags) -> Bool {
@@ -108,8 +109,8 @@ final class ShortcutStore: ObservableObject {
             guard shortcut.flags.contains(.maskControl) || shortcut.flags.contains(.maskAlternate) || shortcut.flags.contains(.maskCommand) else {
                 return "Include Control, Option, or Command."
             }
-            if let conflict = bindings.first(where: { $0.key != command && $0.value.overlapsPrefix(with: shortcut) }) {
-                return "This overlaps \(conflict.key.title) (\(conflict.value.label)). Change one binding so each sequence is unambiguous."
+            if let conflict = bindings.first(where: { $0.key != command && $0.value == shortcut }) {
+                return "This combination is already assigned to \(conflict.key.title)."
             }
         }
         bindings[command] = shortcut
@@ -122,32 +123,52 @@ final class ShortcutStore: ObservableObject {
     }
 }
 
-/// Prefix conflicts are rejected by ShortcutStore, so single-key actions never wait.
-struct ShortcutSequenceMatcher {
-    private var pending: [UInt16] = []
+/// Tracks simultaneously held keys. Only exact matches that have assigned
+/// supersets are deferred, until a key (or required modifier) is released.
+struct ShortcutChordMatcher {
+    private var held = Set<UInt16>()
     private var modifiers: UInt64 = 0
-    private var lastTime: TimeInterval = 0
-    mutating func reset() { pending.removeAll() }
-    mutating func modifiersChanged(_ flags: CGEventFlags) {
-        if flags.intersection(Shortcut.relevantFlags).rawValue != modifiers { reset() }
-    }
-    mutating func press(_ key: UInt16, flags: CGEventFlags, time: TimeInterval,
+    private var candidate: WindowCommand?
+    private var finished = false
+
+    mutating func reset() { held.removeAll(); candidate = nil; finished = false }
+
+    mutating func press(_ key: UInt16, flags: CGEventFlags,
                         bindings: [WindowCommand: Shortcut]) -> (consumed: Bool, command: WindowCommand?) {
         let mask = flags.intersection(Shortcut.relevantFlags).rawValue
-        if time - lastTime > 1.5 || mask != modifiers { reset() }
-        modifiers = mask
-        lastTime = time
-        pending.append(key)
-        var candidates = bindings.filter { $0.value.modifiers == mask && $0.value.keyCodes.starts(with: pending) }
-        if candidates.isEmpty {
-            pending = [key]
-            candidates = bindings.filter { $0.value.modifiers == mask && $0.value.keyCodes.starts(with: pending) }
-        }
-        guard !candidates.isEmpty else { reset(); return (false, nil) }
-        if let command = candidates.first(where: { $0.value.keyCodes == pending })?.key {
-            reset()
+        if held.isEmpty { modifiers = mask; finished = false }
+        guard held.insert(key).inserted else { return (false, nil) }
+        guard !finished, modifiers == mask else { candidate = nil; return (false, nil) }
+        let matches = bindings.filter { $0.value.modifiers == mask && held.isSubset(of: Set($0.value.keyCodes)) }
+        candidate = matches.first(where: { Set($0.value.keyCodes) == held })?.key
+        guard !matches.isEmpty else { candidate = nil; finished = true; return (false, nil) }
+        let ambiguous = matches.contains { $0.value.keyCodes.count > held.count }
+        if let command = candidate, !ambiguous {
+            candidate = nil
+            finished = true
             return (true, command)
         }
         return (true, nil)
+    }
+
+    mutating func release(_ key: UInt16) -> WindowCommand? {
+        guard held.contains(key) else { return nil }
+        let command = finished ? nil : candidate
+        candidate = nil
+        finished = true
+        held.remove(key)
+        if held.isEmpty { reset() }
+        return command
+    }
+
+    mutating func modifiersChanged(_ flags: CGEventFlags) -> WindowCommand? {
+        let mask = flags.intersection(Shortcut.relevantFlags).rawValue
+        guard !held.isEmpty, mask != modifiers else { return nil }
+        // Releasing required modifiers completes the held chord; adding or
+        // substituting a modifier cancels it instead of firing the old action.
+        let command = !finished && mask & modifiers == mask ? candidate : nil
+        candidate = nil
+        finished = true
+        return command
     }
 }

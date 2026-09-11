@@ -16,7 +16,7 @@ final class ShortcutRecorder: ObservableObject {
         previous = recorded
         codes = []
         flags = []
-        message = "Hold modifiers, press your keys, then release the modifiers."
+        message = "Hold the modifiers and all shortcut keys together. Release a key to finish."
         isRecording = true
         store.isRecording = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] event in
@@ -35,13 +35,20 @@ final class ShortcutRecorder: ObservableObject {
     func handle(_ event: NSEvent) -> NSEvent? {
         if event.type == .flagsChanged {
             let current = CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue)).intersection(Shortcut.relevantFlags)
-            if !codes.isEmpty, current.intersection(flags) != flags {
-                stop()
-                message = "Recorded. Save to assign this shortcut."
+            if !codes.isEmpty, current != flags {
+                let releasedOnly = current.intersection(flags) == current
+                stop(cancel: !releasedOnly)
+                message = releasedOnly ? "Recorded. Save to assign this combination." : "Modifiers changed. Record the combination again."
             }
             return event
         }
-        if event.type == .keyUp { return nil }
+        if event.type == .keyUp {
+            if codes.contains(event.keyCode) {
+                stop()
+                message = "Recorded. Save to assign this combination."
+            }
+            return nil
+        }
         if event.isARepeat { return nil }
         let current = CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue)).intersection(Shortcut.relevantFlags)
         if event.keyCode == 53 && current.isEmpty { stop(cancel: true); message = "Recording cancelled."; return nil }
@@ -55,7 +62,7 @@ final class ShortcutRecorder: ObservableObject {
         }
         guard codes.count < 4 else { message = "Four keys recorded. Release the modifiers to finish."; return nil }
         flags = current
-        codes.append(event.keyCode)
+        if !codes.contains(event.keyCode) { codes.append(event.keyCode) }
         recorded = Shortcut(keyCodes: codes, modifiers: flags.rawValue)
         return nil
     }

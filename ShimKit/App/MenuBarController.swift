@@ -38,8 +38,13 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
         for command in WindowCommand.allCases {
             if [.topLeft, .leftThird, .maximize, .previousDisplay].contains(command) { commands.addItem(.separator()) }
             let binding = shortcuts.bindings[command]
-            let title = command.title + ((binding?.keyCodes.count ?? 0) > 1 ? "    \(binding!.label)" : "")
-            let entry = NSMenuItem(title: title, action: #selector(windowAction(_:)), keyEquivalent: shortcuts.bindings[command]?.keyEquivalent ?? "")
+            let ambiguous = binding.map { shortcut in
+                shortcuts.bindings.values.contains { $0.modifiers == shortcut.modifiers &&
+                    $0.keyCodes.count > shortcut.keyCodes.count && Set(shortcut.keyCodes).isSubset(of: Set($0.keyCodes)) }
+            } ?? false
+            let displayOnly = (binding?.keyCodes.count ?? 0) > 1 || ambiguous
+            let title = command.title + (displayOnly ? "    \(binding!.label)" : "")
+            let entry = NSMenuItem(title: title, action: #selector(windowAction(_:)), keyEquivalent: displayOnly ? "" : (binding?.keyEquivalent ?? ""))
             entry.keyEquivalentModifierMask = shortcuts.bindings[command]?.eventModifiers ?? []
             entry.representedObject = command.rawValue
             entry.target = self

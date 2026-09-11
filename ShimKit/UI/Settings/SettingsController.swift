@@ -124,7 +124,7 @@ private struct SettingsView: View {
                         Text("1 minute").tag(60.0)
                     }.disabled(!preferences.menuBarAutoHide)
                     Toggle("Toggle with ⌃⌥H", isOn: $preferences.menuBarHiderHotkey)
-                    if shortcuts.bindings.values.contains(where: { $0.overlapsPrefix(with: .menuBarHider) }) {
+                    if shortcuts.bindings.values.contains(where: { $0.overlapsKeys(with: .menuBarHider) }) {
                         Text("⌃⌥H is assigned to a window action. Remove that assignment to enable the menu bar shortcut.").font(.caption)
                     }
                 }.disabled(!preferences.menuBarHiderEnabled)
@@ -179,9 +179,9 @@ private struct ShortcutEditor: View {
                 if recorder.isRecording { recorder.stop(cancel: true) }
                 else { recorder.start(store: store) }
             }
-            Text("Hold Control, Option, or Command in any combination. Press one to four keys in order, then release the modifiers. For example: hold ⌃⌥⌘, press ← then ↑.")
+            Text("Hold Control, Option, or Command in any combination, together with one to four keys. Release a key to finish. For example: hold ⌃⌥⌘ and both ← and ↑ together.")
                 .font(.callout).foregroundStyle(.secondary)
-            Text("When using a sequence, keep its modifiers held and press each key within 1.5 seconds. Key positions follow the US keyboard; system-reserved shortcuts may be intercepted by macOS.")
+            Text("Key order does not matter. Unambiguous combinations fire immediately; a combination that could grow into another assignment waits for release. Key positions follow the US keyboard.")
                 .font(.caption).foregroundStyle(.secondary)
             if !recorder.message.isEmpty { Text(recorder.message).font(.caption) }
             if !error.isEmpty { Text(error).foregroundStyle(.red) }

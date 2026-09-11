@@ -16,7 +16,7 @@ ShimKit is intended to consolidate small everyday macOS utilities into one extre
 - Command+` opens the same switcher scoped to the frontmost application. Hold Command and repeat ` to cycle, add Shift to reverse, and release Command to activate. The window list stays fixed while cycling.
 - Refined native material switcher with larger rounded previews, app names, window titles, minimized indicators, and keyboard hints. Cached previews appear with the popup and refresh afterward.
 - Collapsible menu-bar icons with Command-drag dividers, an optional always-hidden section, automatic hiding, and Control+Option+H.
-- Recorded window-manager shortcuts with one to four keys under held modifiers, module toggles, visibility preferences, and native launch-at-login registration.
+- Recorded window-manager shortcuts with one to four simultaneously held keys, module toggles, visibility preferences, and native launch-at-login registration.
 - Automatic update checks and installation through GitHub Releases, with signed update feeds and archives. Manual Check for Updates is available in Settings and the menu bar.
 - Menu-bar-only by default. Reopen the app in Finder to recover Settings if both the menu-bar and Dock icons are hidden.
 
@@ -37,13 +37,13 @@ All positioning commands are available from the menu and can be assigned shortcu
 
 ### Recording complex shortcuts
 
-Open **Settings → Windows**, click a command's shortcut, then choose **Record Shortcut**. Hold Control, Option, Command, and/or Shift (at least one of Control, Option, or Command), press one to four keys in order, then release the modifiers and click **Save**.
+Open **Settings → Windows**, click a command's shortcut, then choose **Record Shortcut**. Hold Control, Option, Command, and/or Shift (at least one of Control, Option, or Command), hold one to four keys together, then release a key and click **Save**.
 
-For **Left Two Thirds**, hold **Control–Option–Command**, press **Left Arrow**, then **Up Arrow**, release the modifiers, and save. The shortcut is displayed as `⌃⌥⌘←, ↑`. You can keep Left held while pressing Up; the key-down order defines the sequence.
+For **Left Two Thirds**, hold **Control–Option–Command** and both **Left Arrow** and **Up Arrow** together. The shortcut is displayed as `⌃⌥⌘← + ↑`. Key order does not matter. A separate `⌃⌥⌘←` assignment can coexist with it.
 
-To invoke a sequence, keep the same modifiers held and press each key within 1.5 seconds. Modifier changes, switching applications, or a timeout cancel an unfinished sequence. An unmatched key cancels the sequence and is processed normally; the consumed prefix is not replayed. Existing single-key shortcuts still fire immediately. Duplicate shortcuts and bindings that are prefixes of other bindings are rejected with the conflicting command's name. Existing saved shortcuts migrate automatically.
+Unambiguous combinations fire immediately when all keys are held. An exact combination waits for key or required-modifier release only if a larger assigned combination contains it with the same modifiers. Adding the extra key chooses the larger combination; the smaller action does not fire afterward. Only keys held together count, with no sequence timeout. Extra unmatched keys, added modifiers, or application changes cancel an unresolved combination. Release all non-modifier keys before starting a new combination.
 
-Recording suspends ShimKit's global shortcuts until it finishes or is cancelled. Escape cancels recording; leaving ShimKit also cancels it. macOS or another utility may still intercept system-reserved key combinations. Menu entries display multi-key sequences without registering their first key as a native menu accelerator.
+Only duplicate combinations are rejected, regardless of key order. Existing single-key assignments are preserved; multi-key assignments from 0.4.0 now represent simultaneous chords. Recording suspends ShimKit's global shortcuts. Escape or leaving ShimKit cancels recording. macOS or another utility may still intercept reserved combinations. Multi-key and ambiguous menu shortcuts are displayed as labels so native menu accelerators cannot fire a smaller action prematurely.
 
 ## Menu-bar organization
 

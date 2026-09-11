@@ -6,7 +6,7 @@ final class HotkeyManager: ObservableObject {
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var activationObserver: NSObjectProtocol?
-    private var sequence = ShortcutSequenceMatcher()
+    private var chord = ShortcutChordMatcher()
     private var swallowed = Set<UInt16>()
     let shortcuts: ShortcutStore
     var onToggleMenuBar: (() -> Void)?
@@ -19,7 +19,7 @@ final class HotkeyManager: ObservableObject {
     init(shortcuts: ShortcutStore) {
         self.shortcuts = shortcuts
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil, queue: .main) { [weak self] _ in self?.sequence.reset() }
+            object: nil, queue: .main) { [weak self] _ in self?.chord.reset() }
     }
     deinit {
         stop()
@@ -48,20 +48,29 @@ final class HotkeyManager: ObservableObject {
     func stop() {
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-        tap = nil; source = nil; swallowed.removeAll(); sequence.reset()
+        tap = nil; source = nil; swallowed.removeAll(); chord.reset()
+    }
+
+    private func dispatch(_ command: WindowCommand?) {
+        guard let command else { return }
+        DispatchQueue.main.async { [weak self] in self?.onCommand?(command) }
     }
 
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             onCancel?()
-            swallowed.removeAll(); sequence.reset()
+            swallowed.removeAll(); chord.reset()
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
         let code = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-        if type == .keyUp, swallowed.remove(code) != nil { return nil }
-        if shortcuts.isRecording { sequence.reset(); return Unmanaged.passUnretained(event) }
-        if type == .flagsChanged { sequence.modifiersChanged(event.flags) }
+        if shortcuts.isRecording || !Preferences.shared.managerEnabled { chord.reset() }
+        if type == .keyUp {
+            dispatch(chord.release(code))
+            return swallowed.remove(code) != nil ? nil : Unmanaged.passUnretained(event)
+        }
+        if shortcuts.isRecording { return Unmanaged.passUnretained(event) }
+        if type == .flagsChanged { dispatch(chord.modifiersChanged(event.flags)) }
         if type == .keyDown, event.getIntegerValueField(.keyboardEventAutorepeat) != 0 {
             return swallowed.contains(code) ? nil : Unmanaged.passUnretained(event)
         }
@@ -73,7 +82,7 @@ final class HotkeyManager: ObservableObject {
         let flags = event.flags.intersection(Shortcut.relevantFlags)
         if Preferences.shared.switcherEnabled,
            let requestedScope = WindowSwitcherScope.matching(keyCode: code, flags: flags) {
-            sequence.reset()
+            chord.reset()
             onSwitch?(flags.contains(.maskShift), requestedScope)
             swallowed.insert(code)
             return nil
@@ -90,17 +99,15 @@ final class HotkeyManager: ObservableObject {
             return nil
         }
         if Preferences.shared.managerEnabled {
-            let result = sequence.press(code, flags: flags, time: ProcessInfo.processInfo.systemUptime, bindings: shortcuts.bindings)
+            let result = chord.press(code, flags: flags, bindings: shortcuts.bindings)
             if result.consumed {
-                if let command = result.command, event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
-                    DispatchQueue.main.async { [weak self] in self?.onCommand?(command) }
-                }
+                dispatch(result.command)
                 swallowed.insert(code)
                 return nil
             }
-        } else { sequence.reset() }
+        } else { chord.reset() }
         if Preferences.shared.menuBarHiderEnabled, Preferences.shared.menuBarHiderHotkey,
-           !shortcuts.bindings.values.contains(where: { $0.overlapsPrefix(with: .menuBarHider) }),
+           !shortcuts.bindings.values.contains(where: { $0.overlapsKeys(with: .menuBarHider) }),
            Shortcut.menuBarHider.matches(code: code, flags: flags) {
             if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
                 DispatchQueue.main.async { [weak self] in self?.onToggleMenuBar?() }
