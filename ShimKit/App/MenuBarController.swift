@@ -23,13 +23,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
         }
         guard item == nil else { return }
         let status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let icon = Bundle.main.url(forResource: "AppIcon", withExtension: "icns")
-            .flatMap { NSImage(contentsOf: $0) }
-            ?? NSImage(systemSymbolName: "rectangle.split.2x2", accessibilityDescription: "ShimKit")
-        icon?.size = NSSize(width: 18, height: 18)
-        // Preserve the app artwork's colors instead of tinting its whole tile as a template.
-        icon?.isTemplate = false
-        status.button?.image = icon
+        status.button?.image = MenuBarIcon.make()
         status.button?.setAccessibilityLabel("ShimKit")
         status.button?.toolTip = "ShimKit"
         item = status
