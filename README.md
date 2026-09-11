@@ -16,7 +16,7 @@ ShimKit is intended to consolidate small everyday macOS utilities into one extre
 - Command+` opens the same switcher scoped to the frontmost application. Hold Command and repeat ` to cycle, add Shift to reverse, and release Command to activate. The window list stays fixed while cycling.
 - Refined native material switcher with larger rounded previews, app names, window titles, minimized indicators, and keyboard hints. Cached previews appear with the popup and refresh afterward.
 - Collapsible menu-bar icons with Command-drag dividers, an optional always-hidden section, automatic hiding, and Control+Option+H.
-- Editable window-manager shortcuts, module toggles, visibility preferences, and native launch-at-login registration.
+- Recorded window-manager shortcuts with one to four keys under held modifiers, module toggles, visibility preferences, and native launch-at-login registration.
 - Automatic update checks and installation through GitHub Releases, with signed update feeds and archives. Manual Check for Updates is available in Settings and the menu bar.
 - Menu-bar-only by default. Reopen the app in Finder to recover Settings if both the menu-bar and Dock icons are hidden.
 
@@ -34,6 +34,16 @@ ShimKit is intended to consolidate small everyday macOS utilities into one extre
 | Show / hide menu-bar icons | Control+Option+H (when enabled) |
 
 All positioning commands are available from the menu and can be assigned shortcuts in Settings. Letter shortcuts use physical US keyboard positions. Window-switcher activation is fixed at Option+Tab (all apps) and Command+backtick (current app); both bindings use the shared shortcut model. These combinations and their Shift variants are reserved for switching.
+
+### Recording complex shortcuts
+
+Open **Settings → Windows**, click a command's shortcut, then choose **Record Shortcut**. Hold Control, Option, Command, and/or Shift (at least one of Control, Option, or Command), press one to four keys in order, then release the modifiers and click **Save**.
+
+For **Left Two Thirds**, hold **Control–Option–Command**, press **Left Arrow**, then **Up Arrow**, release the modifiers, and save. The shortcut is displayed as `⌃⌥⌘←, ↑`. You can keep Left held while pressing Up; the key-down order defines the sequence.
+
+To invoke a sequence, keep the same modifiers held and press each key within 1.5 seconds. Modifier changes, switching applications, or a timeout cancel an unfinished sequence. An unmatched key cancels the sequence and is processed normally; the consumed prefix is not replayed. Existing single-key shortcuts still fire immediately. Duplicate shortcuts and bindings that are prefixes of other bindings are rejected with the conflicting command's name. Existing saved shortcuts migrate automatically.
+
+Recording suspends ShimKit's global shortcuts until it finishes or is cancelled. Escape cancels recording; leaving ShimKit also cancels it. macOS or another utility may still intercept system-reserved key combinations. Menu entries display multi-key sequences without registering their first key as a native menu accelerator.
 
 ## Menu-bar organization
 

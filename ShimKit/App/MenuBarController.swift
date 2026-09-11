@@ -37,7 +37,9 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
         commands.autoenablesItems = false
         for command in WindowCommand.allCases {
             if [.topLeft, .leftThird, .maximize, .previousDisplay].contains(command) { commands.addItem(.separator()) }
-            let entry = NSMenuItem(title: command.title, action: #selector(windowAction(_:)), keyEquivalent: shortcuts.bindings[command]?.keyEquivalent ?? "")
+            let binding = shortcuts.bindings[command]
+            let title = command.title + ((binding?.keyCodes.count ?? 0) > 1 ? "    \(binding!.label)" : "")
+            let entry = NSMenuItem(title: title, action: #selector(windowAction(_:)), keyEquivalent: shortcuts.bindings[command]?.keyEquivalent ?? "")
             entry.keyEquivalentModifierMask = shortcuts.bindings[command]?.eventModifiers ?? []
             entry.representedObject = command.rawValue
             entry.target = self

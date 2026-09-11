@@ -124,7 +124,7 @@ private struct SettingsView: View {
                         Text("1 minute").tag(60.0)
                     }.disabled(!preferences.menuBarAutoHide)
                     Toggle("Toggle with ⌃⌥H", isOn: $preferences.menuBarHiderHotkey)
-                    if shortcuts.bindings.values.contains(Shortcut.menuBarHider) {
+                    if shortcuts.bindings.values.contains(where: { $0.overlapsPrefix(with: .menuBarHider) }) {
                         Text("⌃⌥H is assigned to a window action. Remove that assignment to enable the menu bar shortcut.").font(.caption)
                     }
                 }.disabled(!preferences.menuBarHiderEnabled)
@@ -163,47 +163,42 @@ private struct ShortcutEditor: View {
     let command: WindowCommand
     @ObservedObject var store: ShortcutStore
     @Environment(\.dismiss) private var dismiss
-    @State private var key: UInt16 = 123
-    @State private var control = true
-    @State private var option = true
-    @State private var shift = false
-    @State private var commandModifier = false
+    @StateObject private var recorder = ShortcutRecorder()
     @State private var error = ""
     var body: some View {
-        Form {
-            Text(command.title).font(.headline)
-            HStack {
-                Toggle("Control", isOn: $control)
-                Toggle("Option", isOn: $option)
-                Toggle("Shift", isOn: $shift)
-                Toggle("Command", isOn: $commandModifier)
+        VStack(alignment: .leading, spacing: 18) {
+            Text(command.title).font(.title3.weight(.semibold))
+            Text("Record a shortcut").foregroundStyle(.secondary)
+            Text(recorder.recorded?.label ?? "No shortcut")
+                .font(.system(size: 24, weight: .medium, design: .rounded))
+                .frame(maxWidth: .infinity, minHeight: 72)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityLabel("Recorded shortcut")
+            Button(recorder.isRecording ? "Cancel Recording" : "Record Shortcut") {
+                error = ""
+                if recorder.isRecording { recorder.stop(cancel: true) }
+                else { recorder.start(store: store) }
             }
-            Picker("Key", selection: $key) {
-                ForEach(Shortcut.keys, id: \.code) { Text($0.label).tag($0.code) }
-            }
+            Text("Hold Control, Option, or Command in any combination. Press one to four keys in order, then release the modifiers. For example: hold ⌃⌥⌘, press ← then ↑.")
+                .font(.callout).foregroundStyle(.secondary)
+            Text("When using a sequence, keep its modifiers held and press each key within 1.5 seconds. Key positions follow the US keyboard; system-reserved shortcuts may be intercepted by macOS.")
+                .font(.caption).foregroundStyle(.secondary)
+            if !recorder.message.isEmpty { Text(recorder.message).font(.caption) }
             if !error.isEmpty { Text(error).foregroundStyle(.red) }
             HStack {
-                Button("Remove") { _ = store.update(command, shortcut: nil); dismiss() }
+                Button("Remove") { recorder.stop(); _ = store.update(command, shortcut: nil); dismiss() }
                 Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { recorder.stop(); dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Save") {
-                    var flags: CGEventFlags = []
-                    if control { flags.insert(.maskControl) }
-                    if option { flags.insert(.maskAlternate) }
-                    if shift { flags.insert(.maskShift) }
-                    if commandModifier { flags.insert(.maskCommand) }
-                    if let failure = store.update(command, shortcut: Shortcut(keyCode: key, modifiers: flags.rawValue)) { error = failure }
+                    if let failure = store.update(command, shortcut: recorder.recorded) { error = failure }
                     else { dismiss() }
-                }.keyboardShortcut(.defaultAction)
+                }.keyboardShortcut(.defaultAction).disabled(recorder.isRecording || recorder.recorded == nil)
             }
-        }.padding(24).frame(width: 460)
-        .onAppear {
-            guard let shortcut = store.bindings[command] else { return }
-            key = shortcut.keyCode
-            control = shortcut.flags.contains(.maskControl)
-            option = shortcut.flags.contains(.maskAlternate)
-            shift = shortcut.flags.contains(.maskShift)
-            commandModifier = shortcut.flags.contains(.maskCommand)
+        }.padding(24).frame(width: 480)
+        .onAppear { recorder.recorded = store.bindings[command] }
+        .onDisappear { recorder.stop() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            if recorder.isRecording { recorder.stop(cancel: true) }
         }
     }
 }
