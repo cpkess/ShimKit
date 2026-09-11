@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-final class SettingsController {
+final class SettingsController: NSObject, NSWindowDelegate {
     private let window: NSWindow
     private let permissions: PermissionsManager
     private let login: LoginItemManager
@@ -10,14 +10,17 @@ final class SettingsController {
         self.login = login
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 560),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        super.init()
+        window.delegate = self
         window.title = "ShimKit Settings"
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: SettingsView(preferences: .shared, permissions: permissions,
                                                                   shortcuts: shortcuts, hotkeys: hotkeys, login: login, updates: updates, menuBarHider: menuBarHider))
         window.center()
     }
+    func windowWillClose(_ notification: Notification) { permissions.stopMonitoring() }
     func show() {
-        permissions.refresh()
+        permissions.monitorChanges()
         login.refresh()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -34,6 +37,19 @@ private struct SettingsView: View {
     @ObservedObject var menuBarHider: MenuBarHiderController
     @State private var editing: WindowCommand?
     @State private var selectedTab = 0
+    private var previewBinding: Binding<Bool> {
+        Binding(get: { preferences.previews }, set: { enabled in
+            preferences.previews = enabled
+            if enabled && !permissions.screenRecording { permissions.requestScreenRecording() }
+        })
+    }
+    private var accessibilityHelp: some View {
+        HStack {
+            Label("Allow Accessibility to use window tools", systemImage: "hand.raised")
+            Spacer()
+            Button("Enable…") { selectedTab = 3; permissions.requestAccessibility() }
+        }.padding(12).background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+    }
     var body: some View {
         VStack(spacing: 12) {
             Picker("Settings section", selection: $selectedTab) {
@@ -70,6 +86,7 @@ private struct SettingsView: View {
             }.formStyle(.grouped)
             } else if selectedTab == 1 {
             Form {
+                if !permissions.accessibility { accessibilityHelp }
                 Toggle("Enable Window Manager", isOn: $preferences.managerEnabled)
                 Section("Shortcuts") {
                     ForEach(WindowCommand.allCases, id: \.self) { command in
@@ -87,15 +104,21 @@ private struct SettingsView: View {
             }.formStyle(.grouped)
             } else if selectedTab == 2 {
             Form {
+                if !permissions.accessibility { accessibilityHelp }
                 Toggle("Enable Window Switcher", isOn: $preferences.switcherEnabled)
                 LabeledContent("All applications", value: "⌥ Tab")
                 LabeledContent("Current application", value: "⌘ `")
                 Text("Hold Option and press Tab for all windows, or hold Command and press ` for windows of the frontmost app. Add Shift to reverse. Release the held modifier to switch. Escape cancels; arrow keys navigate; Return selects.")
                     .foregroundStyle(.secondary)
-                Toggle("Show window previews", isOn: $preferences.previews)
+                Toggle("Show window previews", isOn: previewBinding)
                 Text("Previews are prepared when windows change and kept in memory for instant display. The last snapshot appears first, then refreshes. New windows need an initial capture.").font(.caption).foregroundStyle(.secondary)
                 if preferences.previews && !permissions.screenRecording {
-                    Text("Previews need Screen Recording permission. Icons and titles work without it.").font(.caption)
+                    HStack {
+                        Text("Allow Screen Recording for previews.").font(.caption)
+                        Spacer()
+                        Button("Enable…") { permissions.requestScreenRecording() }
+                    }
+                    Text("Window switching already works with icons and titles.").font(.caption).foregroundStyle(.secondary)
                 }
                 Toggle("Show minimized windows", isOn: $preferences.minimized)
                 Toggle("Show application name", isOn: $preferences.appNames)
@@ -132,25 +155,62 @@ private struct SettingsView: View {
             }.formStyle(.grouped)
             } else {
             Form {
-                Section("Accessibility — required") {
-                    Label(permissions.accessibility ? "Access granted" : "Access needed", systemImage: permissions.accessibility ? "checkmark.circle.fill" : "exclamationmark.circle")
-                    Text("ShimKit uses Accessibility to list, move, and focus windows, and handle global keyboard shortcuts. It does not send window information anywhere.")
-                    Button("Manage Accessibility Access…") { permissions.requestAccessibility() }
+                Section {
+                    Label(permissions.accessibility ? "You're ready to use ShimKit" : "Set up ShimKit",
+                          systemImage: permissions.accessibility ? "checkmark.circle.fill" : "hand.raised.fill")
+                        .font(.title3.weight(.semibold))
+                    Text(permissions.accessibility ? "Window tools are enabled. Previews are optional." : "Allow Accessibility to move and switch windows. You can add previews whenever you like.")
+                        .foregroundStyle(.secondary)
                 }
-                Section("Screen Recording — optional") {
-                    Label(permissions.screenRecording ? "Access granted" : "Not enabled", systemImage: permissions.screenRecording ? "checkmark.circle.fill" : "circle")
-                    Text("Used to prepare window previews and cache them in memory so they appear immediately. Images are never saved to disk. Window switching works without this permission.")
-                    Button("Enable Window Previews…") { permissions.requestScreenRecording() }
-                    Text("macOS may require quitting and reopening ShimKit after permission changes.").font(.caption).foregroundStyle(.secondary)
+                Section("Window tools") {
+                    HStack {
+                        Label("Accessibility", systemImage: "macwindow")
+                        Spacer()
+                        if permissions.accessibility {
+                            Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        } else {
+                            Button("Enable Accessibility…") { permissions.requestAccessibility() }.buttonStyle(.borderedProminent)
+                        }
+                    }
+                    if !permissions.accessibility {
+                        Text("Turn on ShimKit in System Settings. This screen updates automatically.").font(.caption).foregroundStyle(.secondary)
+                    }
+                    if permissions.pending == .accessibility { Text("Waiting for access…").font(.caption).foregroundStyle(.secondary) }
+                    if permissions.accessibility && !hotkeys.isActive {
+                        Text(hotkeys.status).font(.caption)
+                        Button("Reconnect Keyboard Shortcuts") { hotkeys.start() }
+                    }
                 }
-                Section("Keyboard") {
-                    Text(hotkeys.status)
-                    Button("Refresh Permissions & Retry Shortcuts") { permissions.refresh(); hotkeys.start() }
+                Section("Window previews · Optional") {
+                    Toggle("Show window previews", isOn: previewBinding)
+                    Text("Small snapshots are kept in memory for fast switching. They are never saved to disk.").font(.caption).foregroundStyle(.secondary)
+                    if preferences.previews {
+                        if permissions.screenRecording {
+                            Label("Screen Recording allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        } else {
+                            Button("Allow Screen Recording…") { permissions.requestScreenRecording() }
+                            Text("Enable ShimKit in System Settings. Icons and titles work while previews are off.").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if preferences.previews && permissions.pending == .previews { Text("Waiting for access…").font(.caption).foregroundStyle(.secondary) }
+                }
+                DisclosureGroup("Already enabled in System Settings?") {
+                    Text("If macOS still reports access unavailable, restart ShimKit. If it persists, remove its old entry and add this copy again.").font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Button("Restart ShimKit") { permissions.restart() }
+                        Button("Show This App in Finder") { permissions.revealApp() }
+                    }
+                    Text("Use the copy in Applications, rather than running from the installer disk image.").font(.caption).foregroundStyle(.secondary)
+                    if !permissions.message.isEmpty { Text(permissions.message).font(.caption).foregroundStyle(.secondary) }
                 }
             }.formStyle(.grouped)
             }
         }
-        .onAppear { if !permissions.accessibility { selectedTab = 3 } }
+        .onAppear {
+            if !permissions.accessibility { selectedTab = 3 }
+            permissions.monitorChanges()
+        }
+        .onChange(of: selectedTab) { _, _ in permissions.monitorChanges() }
         .padding(16)
         .frame(width: 640, height: 560)
         .sheet(item: $editing) { command in ShortcutEditor(command: command, store: shortcuts) }

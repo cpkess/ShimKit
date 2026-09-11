@@ -56,6 +56,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         switcher.onDismiss = { [weak self] in self?.previews.end() }
         permissions.onAccessibilityGranted = { [weak self] in self?.startServices() }
+        permissions.onAccessibilityRevoked = { [weak self] in
+            self?.hotkeys.stop(); self?.history.stop(); self?.switcher.cancel(); self?.previews.clear()
+        }
+        permissions.onScreenRecordingChanged = { [weak self] granted in
+            guard let self else { return }
+            if granted { self.previews.prepare(windows: self.history.ordered(self.discovery.windows)) }
+            else { self.previews.clear(); self.switcher.cancel() }
+        }
         preferences.$showDock.sink { NSApp.setActivationPolicy($0 ? .regular : .accessory) }.store(in: &subscriptions)
         preferences.$showMenuBar.sink { [weak self] in self?.menuBar?.setVisible($0) }.store(in: &subscriptions)
         preferences.$switcherEnabled.sink { [weak self] enabled in if !enabled { self?.switcher.cancel(); self?.previews.clear() } }.store(in: &subscriptions)

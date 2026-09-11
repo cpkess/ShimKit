@@ -42,12 +42,16 @@ final class WindowHistory {
         onWindowsChanged?()
     }
 
-    deinit {
-        pending?.cancel()
+    deinit { stop() }
+
+    func stop() {
+        pending?.cancel(); pending = nil
         for token in tokens { NSWorkspace.shared.notificationCenter.removeObserver(token) }
         for entry in observations.values {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(entry.observer), .commonModes)
         }
+        tokens.removeAll()
+        observations.removeAll()
     }
 
     private func synchronizeApplications() {

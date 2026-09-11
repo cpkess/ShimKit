@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 
 final class HotkeyManager: ObservableObject {
+    @Published private(set) var isActive = false
     @Published private(set) var status = "Waiting for Accessibility permission"
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
@@ -42,10 +43,13 @@ final class HotkeyManager: ObservableObject {
         source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, created, 0)
         if let source { CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes) }
         CGEvent.tapEnable(tap: created, enable: true)
+        isActive = true
         status = "Global shortcuts active"
     }
 
     func stop() {
+        isActive = false
+        status = "Waiting for Accessibility permission"
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
         tap = nil; source = nil; swallowed.removeAll(); chord.reset()

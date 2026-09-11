@@ -69,7 +69,7 @@ If macOS Settings shows permission enabled but ShimKit still reports access need
 1. Quit ShimKit.
 2. In System Settings → Privacy & Security → Accessibility, remove the old ShimKit entry and add `/Applications/ShimKit.app` using the + button. Enable it.
 3. Repeat for Screen & System Audio Recording if you want previews.
-4. Reopen `/Applications/ShimKit.app` and choose Refresh Permissions & Retry Shortcuts.
+4. Reopen `/Applications/ShimKit.app`; permission status and window services reconnect automatically. A restart button and a shortcut to reveal the current app are under Permissions → Already enabled in System Settings?.
 
 Older 0.1.x builds were ad-hoc signed. Moving to the Developer ID signed 0.2.0 build may require this one-time permission refresh. Subsequent releases use a consistent signing identity. Install before granting permissions.
 
@@ -77,8 +77,8 @@ Older 0.1.x builds were ad-hoc signed. Moving to the Developer ID signed 0.2.0 b
 
 - macOS 14 Sonoma or later; Apple Silicon supported. Xcode's Release app build produces arm64 and x86_64 slices.
 - Xcode 15 or later with the macOS SDK for development (verified with Xcode 26.2 / Swift 6.2.4).
-- **Accessibility is required** for window discovery, positioning, focus, and the keyboard event tap. On first launch, Settings explains the permission. Use Permissions → Manage Accessibility Access, enable ShimKit in System Settings, then return to ShimKit or choose Refresh Permissions & Retry Shortcuts. The app does not repeatedly request authorization.
-- **Screen Recording is optional**, used only for previews. Previews are off by default. Enable permission explicitly in Settings; icons and AX titles work without it. macOS may require an app restart after changing authorization.
+- **Accessibility is required** for window discovery, positioning, focus, and the keyboard event tap. On first launch, Settings explains the permission. Choose Enable Accessibility, then enable ShimKit in System Settings. Setup checks status automatically for up to two minutes and whenever ShimKit becomes active; there is no manual refresh step. The first request uses the macOS prompt, while later attempts open the relevant Settings pane directly. Granting access starts window services; detecting revoked access stops them.
+- **Screen Recording is optional**, used only for previews. Previews are off by default. Turning on Show window previews requests permission inline when needed; icons and AX titles work without it. macOS may require an app restart after changing authorization.
 - Launch at Login uses `SMAppService.mainApp`. Copy the app to a stable location such as `/Applications` before enabling it; macOS may require approval under General → Login Items.
 
 The project uses team `WZJ4ZPRH72`: Apple Development for Debug and Developer ID Application for Release. Contributors can choose their own team in Xcode; `swift test` does not require a signing certificate. App Sandbox is disabled because ShimKit controls other apps via Accessibility. Hardened Runtime remains enabled. No private window APIs are used.
