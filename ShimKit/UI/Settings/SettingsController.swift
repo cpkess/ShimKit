@@ -37,6 +37,7 @@ private struct SettingsView: View {
     @ObservedObject var menuBarHider: MenuBarHiderController
     @State private var editing: WindowCommand?
     @State private var selectedTab = 0
+    @State private var transferMessage = ""
     private var previewBinding: Binding<Bool> {
         Binding(get: { preferences.previews }, set: { enabled in
             preferences.previews = enabled
@@ -71,6 +72,18 @@ private struct SettingsView: View {
                     if !preferences.showMenuBar && !preferences.showDock {
                         Text("Open ShimKit again from Finder to return to Settings.").font(.caption)
                     }
+                }
+                Section("Preferences Backup") {
+                    HStack {
+                        Button("Export Preferences…") {
+                            if let message = PreferencesTransfer.export(preferences: preferences, shortcuts: shortcuts, login: login, updates: updates) { transferMessage = message }
+                        }
+                        Button("Import Preferences…") {
+                            if let message = PreferencesTransfer.importFile(preferences: preferences, shortcuts: shortcuts, login: login, updates: updates) { transferMessage = message }
+                        }
+                    }
+                    Text("Save in iCloud Drive to access your backup on other Macs. Export again after making changes; import to apply it. Includes all settings and shortcuts. Permissions and icon positions are managed by macOS.").font(.caption).foregroundStyle(.secondary)
+                    if !transferMessage.isEmpty { Text(transferMessage).font(.caption).textSelection(.enabled) }
                 }
                 Section("Updates") {
                     Toggle("Automatically check for updates", isOn: Binding(get: { updates.automaticallyChecks }, set: updates.setAutomaticChecks))

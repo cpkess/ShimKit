@@ -117,6 +117,7 @@ final class ShortcutStore: ObservableObject {
         save()
         return nil
     }
+    func replace(with imported: [WindowCommand: Shortcut]) { bindings = imported; save() }
     func reset() { bindings = Shortcut.defaults; save() }
     private func save() {
         if let data = try? JSONEncoder().encode(bindings) { defaults.set(data, forKey: "shortcuts") }

@@ -20,6 +20,22 @@ final class Preferences: ObservableObject {
     @Published var menuBarHideDelay: Double { didSet { defaults.set(menuBarHideDelay, forKey: "menuBarHideDelay") } }
     @Published var menuBarHiderHotkey: Bool { didSet { defaults.set(menuBarHiderHotkey, forKey: "menuBarHiderHotkey") } }
 
+    static let portableBooleans: [String: ReferenceWritableKeyPath<Preferences, Bool>] = [
+        "showMenuBar": \.showMenuBar,
+        "showDock": \.showDock,
+        "managerEnabled": \.managerEnabled,
+        "switcherEnabled": \.switcherEnabled,
+        "previews": \.previews,
+        "minimized": \.minimized,
+        "appNames": \.appNames,
+        "windowTitles": \.windowTitles,
+        "menuBarHideOnLaunch": \.menuBarHideOnLaunch,
+        "menuBarHiderEnabled": \.menuBarHiderEnabled,
+        "menuBarAlwaysHidden": \.menuBarAlwaysHidden,
+        "menuBarAutoHide": \.menuBarAutoHide,
+        "menuBarHiderHotkey": \.menuBarHiderHotkey,
+    ]
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         defaults.register(defaults: ["menuBarHideOnLaunch": true])

@@ -183,3 +183,11 @@ Validation commands:
 swift test
 python3 -m unittest discover -s Tests/ReleaseTests -v
 ```
+
+### Preferences backup and transfer
+
+In **Settings → General → Preferences Backup**, use **Export Preferences…** to save a versioned JSON file. Choose iCloud Drive in the save dialog to make the backup available through your Apple Account on other Macs. This is a manual snapshot: export again after changing settings, and use **Import Preferences…** to apply a backup.
+
+The file includes all configurable window, switcher, menu bar, shortcut, login, and automatic-update preferences. Imports validate the entire file before applying settings and ask before replacing your current setup. Login registration can still require macOS approval, which is reported after import. Accessibility/Screen Recording grants, menu bar icon positions, window content, and update history are not portable preferences and are not included.
+
+The readable JSON can also be supplied as the basis for a future release’s default settings. Exporting or importing does not change the defaults distributed to other users.
