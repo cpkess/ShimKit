@@ -3,6 +3,8 @@ import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    // Capture before services write preferences, so upgrades never re-enable login launch.
+    private let isNewInstallation = (UserDefaults.standard.persistentDomain(forName: "com.shimkit.app") ?? [:]).isEmpty
     let preferences = Preferences.shared
     let permissions = PermissionsManager()
     let shortcuts = ShortcutStore()
@@ -81,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }.store(in: &subscriptions)
         updates.start()
+        login.initializeDefaults(isNewInstallation: isNewInstallation)
         startServices()
         if !permissions.accessibility { showSettings() }
         Log.app.info("ShimKit started")

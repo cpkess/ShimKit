@@ -47,7 +47,7 @@ Only duplicate combinations are rejected, regardless of key order. Existing sing
 
 ## Menu-bar organization
 
-Enable **Settings → Menu Bar → Hide menu bar icons**. The module is off by default and initially opens in arrangement mode:
+The menu bar hider is enabled by default for new installations and initially opens in arrangement mode. Configure it in **Settings → Menu Bar → Hide menu bar icons**:
 
 1. Hold Command and drag icons to the left of the **│** divider. Keep the arrow to its right.
 2. Click the arrow to hide those icons; click again to reveal them. Right-click for Settings and arrangement controls.
@@ -78,7 +78,7 @@ Older 0.1.x builds were ad-hoc signed. Moving to the Developer ID signed 0.2.0 b
 - macOS 14 Sonoma or later; Apple Silicon supported. Xcode's Release app build produces arm64 and x86_64 slices.
 - Xcode 15 or later with the macOS SDK for development (verified with Xcode 26.2 / Swift 6.2.4).
 - **Accessibility is required** for window discovery, positioning, focus, and the keyboard event tap. On first launch, Settings explains the permission. Choose Enable Accessibility, then enable ShimKit in System Settings. Setup checks status automatically for up to two minutes and whenever ShimKit becomes active; there is no manual refresh step. The first request uses the macOS prompt, while later attempts open the relevant Settings pane directly. Granting access starts window services; detecting revoked access stops them.
-- **Screen Recording is optional**, used only for previews. Previews are off by default. Turning on Show window previews requests permission inline when needed; icons and AX titles work without it. macOS may require an app restart after changing authorization.
+- **Screen Recording is optional**, used only for previews. Previews are enabled by default for new installations; Screen Recording access is still required. Turning on Show window previews requests permission inline when needed; icons and AX titles work without it. macOS may require an app restart after changing authorization.
 - Launch at Login uses `SMAppService.mainApp`. Copy the app to a stable location such as `/Applications` before enabling it; macOS may require approval under General → Login Items.
 
 The project uses team `WZJ4ZPRH72`: Apple Development for Debug and Developer ID Application for Release. Contributors can choose their own team in Xcode; `swift test` does not require a signing certificate. App Sandbox is disabled because ShimKit controls other apps via Accessibility. Hardened Runtime remains enabled. No private window APIs are used.
@@ -191,3 +191,7 @@ In **Settings → General → Preferences Backup**, use **Export Preferences…*
 The file includes all configurable window, switcher, menu bar, shortcut, login, and automatic-update preferences. Imports validate the entire file before applying settings and ask before replacing your current setup. Login registration can still require macOS approval, which is reported after import. Accessibility/Screen Recording grants, menu bar icon positions, window content, and update history are not portable preferences and are not included.
 
 The readable JSON can also be supplied as the basis for a future release’s default settings. Exporting or importing does not change the defaults distributed to other users.
+
+### Approved default preferences
+
+`Resources/DefaultPreferences.json` is the approved default profile. Run `python3 scripts/generate-defaults.py` to regenerate the compiled defaults after an approved change. Fresh installations use this profile, including launch at login. Existing saved settings and shortcut removals take precedence; upgrades do not re-enable login launch. Restore Default Shortcuts uses the approved profile’s bindings. Automatic update defaults remain enabled in Info.plist.

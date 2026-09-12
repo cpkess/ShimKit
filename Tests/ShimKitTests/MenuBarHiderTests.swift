@@ -27,19 +27,19 @@ final class MenuBarHiderTests: XCTestCase {
         XCTAssertFalse(MenuBarHiderController.isReachable(CGRect(x: 1720, y: 1093, width: 24, height: 24), screens: screens))
     }
 
-    func testMenuBarSettingsAreOptInAndPersistIndependently() {
+    func testMenuBarDefaultsAndSettingsPersistIndependently() {
         let name = "ShimKitTests.MenuBar.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         let preferences = Preferences(defaults: defaults)
-        XCTAssertFalse(preferences.menuBarHiderEnabled)
+        XCTAssertTrue(preferences.menuBarHiderEnabled)
         XCTAssertFalse(preferences.menuBarAlwaysHidden)
         XCTAssertTrue(preferences.menuBarAutoHide)
-        preferences.menuBarHiderEnabled = true
+        preferences.menuBarHiderEnabled = false
         preferences.menuBarAlwaysHidden = true
         preferences.menuBarHideDelay = 30
         let restored = Preferences(defaults: defaults)
-        XCTAssertTrue(restored.menuBarHiderEnabled)
+        XCTAssertFalse(restored.menuBarHiderEnabled)
         XCTAssertTrue(restored.menuBarAlwaysHidden)
         XCTAssertEqual(restored.menuBarHideDelay, 30)
         XCTAssertTrue(restored.switcherEnabled)

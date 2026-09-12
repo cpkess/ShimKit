@@ -1,0 +1,111 @@
+{
+  "automaticUpdateChecks" : true,
+  "automaticUpdateDownloads" : true,
+  "format" : "com.shimkit.preferences",
+  "launchAtLogin" : true,
+  "menuBarHideDelay" : 10,
+  "settings" : {
+    "appNames" : true,
+    "managerEnabled" : true,
+    "menuBarAlwaysHidden" : false,
+    "menuBarAutoHide" : true,
+    "menuBarHideOnLaunch" : true,
+    "menuBarHiderEnabled" : true,
+    "menuBarHiderHotkey" : true,
+    "minimized" : true,
+    "previews" : true,
+    "showDock" : false,
+    "showMenuBar" : true,
+    "switcherEnabled" : true,
+    "windowTitles" : true
+  },
+  "shortcuts" : {
+    "bottomLeft" : {
+      "keyCodes" : [
+        38
+      ],
+      "modifiers" : 786432
+    },
+    "bottomRight" : {
+      "keyCodes" : [
+        40
+      ],
+      "modifiers" : 786432
+    },
+    "center" : {
+      "keyCodes" : [
+        8
+      ],
+      "modifiers" : 786432
+    },
+    "centerThird" : {
+      "keyCodes" : [
+        126
+      ],
+      "modifiers" : 1835008
+    },
+    "left" : {
+      "keyCodes" : [
+        123
+      ],
+      "modifiers" : 786432
+    },
+    "leftThird" : {
+      "keyCodes" : [
+        123
+      ],
+      "modifiers" : 1835008
+    },
+    "leftTwoThirds" : {
+      "keyCodes" : [
+        123,
+        126
+      ],
+      "modifiers" : 1835008
+    },
+    "maximize" : {
+      "keyCodes" : [
+        126
+      ],
+      "modifiers" : 786432
+    },
+    "restore" : {
+      "keyCodes" : [
+        125
+      ],
+      "modifiers" : 786432
+    },
+    "right" : {
+      "keyCodes" : [
+        124
+      ],
+      "modifiers" : 786432
+    },
+    "rightThird" : {
+      "keyCodes" : [
+        124
+      ],
+      "modifiers" : 1835008
+    },
+    "rightTwoThirds" : {
+      "keyCodes" : [
+        124,
+        126
+      ],
+      "modifiers" : 1835008
+    },
+    "topLeft" : {
+      "keyCodes" : [
+        32
+      ],
+      "modifiers" : 786432
+    },
+    "topRight" : {
+      "keyCodes" : [
+        34
+      ],
+      "modifiers" : 786432
+    }
+  },
+  "version" : 1
+}

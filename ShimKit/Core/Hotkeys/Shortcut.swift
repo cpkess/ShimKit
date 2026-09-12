@@ -83,11 +83,8 @@ struct Shortcut: Codable, Equatable, Hashable {
     static let menuBarHider = Shortcut(keyCode: 4, modifiers: CGEventFlags([.maskControl, .maskAlternate]).rawValue)
     static let switcher = Shortcut(keyCode: 48, modifiers: CGEventFlags.maskAlternate.rawValue)
     static let applicationSwitcher = Shortcut(keyCode: 50, modifiers: CGEventFlags.maskCommand.rawValue)
-    static let defaults: [WindowCommand: Shortcut] = {
-        let codes: [WindowCommand: UInt16] = [.left: 123, .right: 124, .maximize: 126, .restore: 125,
-            .topLeft: 32, .topRight: 34, .bottomLeft: 38, .bottomRight: 40, .center: 8]
-        return codes.mapValues { Shortcut(keyCode: $0, modifiers: CGEventFlags([.maskControl, .maskAlternate]).rawValue) }
-    }()
+    static let defaults = FactoryDefaults.shortcuts
+
 }
 
 final class ShortcutStore: ObservableObject {

@@ -77,6 +77,7 @@ final class ShortcutChordTests: XCTestCase {
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         let store = ShortcutStore(defaults: defaults)
+        store.replace(with: [:])
         XCTAssertNil(store.update(.left, shortcut: bindings[.left]))
         XCTAssertNil(store.update(.leftTwoThirds, shortcut: twoKeys))
         XCTAssertNotNil(store.update(.rightTwoThirds, shortcut: Shortcut(keyCodes: [126, 123], modifiers: flags.rawValue)))

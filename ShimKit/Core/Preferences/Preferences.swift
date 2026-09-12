@@ -38,18 +38,14 @@ final class Preferences: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        defaults.register(defaults: ["menuBarHideOnLaunch": true])
+        defaults.register(defaults: FactoryDefaults.settings)
         menuBarHideOnLaunch = defaults.bool(forKey: "menuBarHideOnLaunch")
-        defaults.register(defaults: ["menuBarHiderEnabled": false, "menuBarAlwaysHidden": false, "menuBarAutoHide": true, "menuBarHideDelay": 10, "menuBarHiderHotkey": true])
         menuBarHiderEnabled = defaults.bool(forKey: "menuBarHiderEnabled")
         menuBarAlwaysHidden = defaults.bool(forKey: "menuBarAlwaysHidden")
         menuBarAutoHide = defaults.bool(forKey: "menuBarAutoHide")
         menuBarHideDelay = defaults.double(forKey: "menuBarHideDelay")
         menuBarHiderHotkey = defaults.bool(forKey: "menuBarHiderHotkey")
 
-        defaults.register(defaults: ["showMenuBar": true, "showDock": false,
-            "managerEnabled": true, "switcherEnabled": true, "previews": false,
-            "minimized": true, "appNames": true, "windowTitles": true])
         showMenuBar = defaults.bool(forKey: "showMenuBar")
         showDock = defaults.bool(forKey: "showDock")
         managerEnabled = defaults.bool(forKey: "managerEnabled")
