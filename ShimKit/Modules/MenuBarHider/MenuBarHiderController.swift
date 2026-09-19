@@ -11,6 +11,9 @@ final class MenuBarHiderController: NSObject, ObservableObject {
     private var control: NSStatusItem?
     private var divider: NSStatusItem?
     private var permanentDivider: NSStatusItem?
+    private var overflowSpacers: [String: [NSStatusItem]] = [:]
+    private var nativeArrangementPending = !UserDefaults.standard.bool(forKey: "menuBarNativeOverflowArranged")
+    private var usesNativeOverflow: Bool { ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 }
     private var subscriptions = Set<AnyCancellable>()
     private var timer: Timer?
     private var menu: NSMenu?
@@ -30,7 +33,7 @@ final class MenuBarHiderController: NSObject, ObservableObject {
                                               name: NSApplication.didChangeScreenParametersNotification, object: nil)
         let collapseOnLaunch = preferences.menuBarHiderEnabled && preferences.menuBarHideOnLaunch
         configure()
-        if collapseOnLaunch {
+        if collapseOnLaunch && !(usesNativeOverflow && nativeArrangementPending) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self, self.control != nil, self.state == .arranging else { return }
                 self.state = .collapsed
@@ -42,6 +45,7 @@ final class MenuBarHiderController: NSObject, ObservableObject {
     func stop() {
         timer?.invalidate(); timer = nil
         // Restore space before removing controls, including the always-hidden area.
+        removeOverflowSpacers()
         divider?.length = 20; permanentDivider?.length = 20
         for item in [permanentDivider, divider, control].compactMap({ $0 }) {
             NSStatusBar.system.removeStatusItem(item)
@@ -56,6 +60,7 @@ final class MenuBarHiderController: NSObject, ObservableObject {
             if control != nil {
                 // Keep preference observation active while the module is disabled.
                 timer?.invalidate(); timer = nil
+                removeOverflowSpacers()
                 for item in [permanentDivider, divider, control].compactMap({ $0 }) {
                     item.length = 20
                     NSStatusBar.system.removeStatusItem(item)
@@ -76,6 +81,7 @@ final class MenuBarHiderController: NSObject, ObservableObject {
             permanentDivider?.button?.toolTip = "Always-hidden boundary — Command-drag icons to its left"
             state = .arranging
         } else if !preferences.menuBarAlwaysHidden, let item = permanentDivider {
+            removeOverflowSpacers(named: "ShimKit.MenuBar.AlwaysHidden")
             item.length = 20
             NSStatusBar.system.removeStatusItem(item)
             permanentDivider = nil
@@ -84,8 +90,18 @@ final class MenuBarHiderController: NSObject, ObservableObject {
     }
 
     private func makeItem(name: String, divider isDivider: Bool) -> NSStatusItem {
+        if isDivider && usesNativeOverflow {
+            // Each item must remain below macOS 27's per-item width limit.
+            // Keep identities stable so macOS preserves the group order on restart.
+            overflowSpacers[name] = (0..<6).map { index in
+                let spacer = NSStatusBar.system.statusItem(withLength: 0)
+                spacer.autosaveName = "\(name).NativeOverflow.\(index)"
+                spacer.button?.setAccessibilityLabel("Hidden icons spacer")
+                return spacer
+            }
+        }
         let item = NSStatusBar.system.statusItem(withLength: isDivider ? 20 : 24)
-        item.autosaveName = name
+        item.autosaveName = usesNativeOverflow ? "\(name).NativeOverflow" : name
         if let button = item.button {
             button.target = self
             button.action = isDivider ? #selector(showMenu(_:)) : #selector(clicked(_:))
@@ -104,10 +120,47 @@ final class MenuBarHiderController: NSObject, ObservableObject {
         return item
     }
 
+    private func removeOverflowSpacers(named name: String? = nil) {
+        let names = name.map { [$0] } ?? Array(overflowSpacers.keys)
+        for name in names {
+            for item in overflowSpacers.removeValue(forKey: name) ?? [] {
+                item.length = 0
+                NSStatusBar.system.removeStatusItem(item)
+            }
+        }
+    }
+
+    private func setBoundary(_ item: NSStatusItem?, name: String, collapsed: Bool) {
+        guard usesNativeOverflow else {
+            item?.length = collapsed ? Self.collapsedLength(screenWidths: NSScreen.screens.map { $0.frame.width }) : 20
+            return
+        }
+        let lengths = Self.nativeOverflowLengths(screenWidths: NSScreen.screens.map { $0.frame.width },
+                                                trailingWidths: NSScreen.screens.compactMap { $0.auxiliaryTopRightArea?.width })
+        // Resize from the far left toward the visible boundary, leaving the toggle stationary.
+        for (index, spacer) in (overflowSpacers[name] ?? []).enumerated().reversed() {
+            spacer.length = collapsed && index + 1 < lengths.count ? lengths[index + 1] : 0
+        }
+        item?.length = collapsed ? lengths[0] : 20
+    }
+
+    static func nativeOverflowLengths(screenWidths: [CGFloat], trailingWidths: [CGFloat]) -> [CGFloat] {
+        let widths = screenWidths.filter { $0.isFinite && $0 > 0 }
+        let narrowest = widths.min() ?? 1000
+        let notch = trailingWidths.filter { $0.isFinite && $0 > 0 }.min() ?? narrowest
+        let perItem = max(1, floor(min(narrowest / 2, notch) - 64))
+        let count = min(7, max(1, Int(ceil((widths.max() ?? narrowest) * 2 / perItem))))
+        return Array(repeating: perItem, count: count)
+    }
+
     func toggle() {
         guard control != nil else { return }
         state = state == .collapsed ? .expanded : .collapsed
         apply()
+        if usesNativeOverflow && state == .collapsed {
+            nativeArrangementPending = false
+            UserDefaults.standard.set(true, forKey: "menuBarNativeOverflowArranged")
+        }
     }
 
     func arrange() {
@@ -122,10 +175,11 @@ final class MenuBarHiderController: NSObject, ObservableObject {
         if hiding && !validOrder() {
             state = .arranging
             message = "Make the arrow visible and Command-drag both dividers to its left, with the always-hidden divider furthest left. Quit other menu-bar hiding utilities, then try again."
+        } else if usesNativeOverflow && nativeArrangementPending {
+            message = "macOS 27 needs a one-time arrangement: Command-drag icons to the left of the divider, then click Hide Icons. Keep ShimKit’s spacer group between its divider and arrow."
         } else { message = "" }
-        let length = Self.collapsedLength(screenWidths: NSScreen.screens.map { $0.frame.width })
-        divider?.length = state == .collapsed ? length : 20
-        permanentDivider?.length = state == .arranging ? 20 : length
+        setBoundary(divider, name: "ShimKit.MenuBar.Divider", collapsed: state == .collapsed)
+        setBoundary(permanentDivider, name: "ShimKit.MenuBar.AlwaysHidden", collapsed: state != .arranging)
         control?.button?.image = NSImage(systemSymbolName: state == .collapsed ? "chevron.left" : "chevron.right",
                                         accessibilityDescription: state == .collapsed ? "Show hidden menu bar icons" : "Hide menu bar icons")
         control?.button?.toolTip = "\(state == .collapsed ? "Show" : "Hide") menu bar icons. Option-click to arrange all icons; right-click for options."
@@ -137,6 +191,12 @@ final class MenuBarHiderController: NSObject, ObservableObject {
               let boundary = divider?.button?.window?.frame else { return false }
         guard Self.isReachable(arrow, screens: NSScreen.screens.map(\.frame)),
               Self.isOrdered(left: boundary, right: arrow) else { return false }
+        if usesNativeOverflow {
+            for spacer in overflowSpacers["ShimKit.MenuBar.Divider"] ?? [] {
+                guard let frame = spacer.button?.window?.frame,
+                      Self.isOrdered(left: frame, right: arrow) else { return false }
+            }
+        }
         if let permanentDivider {
             guard let frame = permanentDivider.button?.window?.frame,
                   Self.isOrdered(left: frame, right: boundary) else { return false }

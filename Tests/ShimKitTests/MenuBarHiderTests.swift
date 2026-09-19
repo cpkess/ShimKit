@@ -3,6 +3,21 @@ import AppKit
 @testable import ShimKit
 
 final class MenuBarHiderTests: XCTestCase {
+    func testNativeOverflowKeepsEveryItemBelowWidthAndNotchLimits() {
+        let lengths = MenuBarHiderController.nativeOverflowLengths(screenWidths: [1728, 3840], trailingWidths: [771.5])
+        XCTAssertEqual(lengths.count, 7)
+        XCTAssertTrue(lengths.allSatisfy { $0 == 707 })
+        XCTAssertGreaterThan(lengths.reduce(0, +), 3840)
+        let normal = MenuBarHiderController.nativeOverflowLengths(screenWidths: [1440], trailingWidths: [])
+        XCTAssertGreaterThanOrEqual(normal.reduce(0, +), 2880)
+        XCTAssertTrue(normal.allSatisfy { $0 < 720 })
+        for widths: [CGFloat] in [[], [0, -1, .nan], [100]] {
+            let result = MenuBarHiderController.nativeOverflowLengths(screenWidths: widths, trailingWidths: [.nan])
+            XCTAssertTrue((1...7).contains(result.count))
+            XCTAssertTrue(result.allSatisfy { $0.isFinite && $0 > 0 })
+        }
+    }
+
     func testSpacerUsesWidestDisplayAndCapsExtremeSizes() {
         XCTAssertEqual(MenuBarHiderController.collapsedLength(screenWidths: [1440, 2560]), 5120)
         XCTAssertEqual(MenuBarHiderController.collapsedLength(screenWidths: [8000]), 10000)
