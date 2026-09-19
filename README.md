@@ -195,3 +195,9 @@ The readable JSON can also be supplied as the basis for a future release’s def
 ### Approved default preferences
 
 `Resources/DefaultPreferences.json` is the approved default profile. Run `python3 scripts/generate-defaults.py` to regenerate the compiled defaults after an approved change. Fresh installations use this profile, including launch at login. Existing saved settings and shortcut removals take precedence; upgrades do not re-enable login launch. Restore Default Shortcuts uses the approved profile’s bindings. Automatic update defaults remain enabled in Info.plist.
+
+### Snapping across adjacent displays
+
+Repeat Left, Right, Top, or Bottom Half to push a snapped window through a shared display edge. For example: Right Half on display 1 → Left Half on display 2 → Right Half on display 2. The first press retains normal snapping behavior. At an outer horizontal edge, Left/Right continue the half → two thirds → one third cycle. Top/Bottom stay at the outer edge. Explicit thirds and corner commands keep their existing behavior.
+
+Adjacency follows full display frames in macOS Display Settings, including vertically stacked and offset monitors. Corner-only contact and gaps do not count as shared edges. Placement uses the destination’s usable frame so menu bars, Docks, and different display sizes are respected. Manual window moves, rejected resizes, and changes to the current display’s geometry reset the sequence.

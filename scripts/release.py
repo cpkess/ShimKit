@@ -158,7 +158,7 @@ def main():
     else:
         head = None
 
-    run("swift", "test")
+    run("swift", "test", "--scratch-path", args.derived_data / "SwiftTests")
     run("python3", "-m", "unittest", "discover", "-s", "Tests/ReleaseTests", "-v")
     # Xcode archive/export re-signs Sparkle's nested tools for our Developer ID team.
     archive_path = args.derived_data / "ShimKit.xcarchive"

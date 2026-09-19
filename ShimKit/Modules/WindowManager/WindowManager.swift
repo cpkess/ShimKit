@@ -3,7 +3,7 @@ import ApplicationServices
 
 final class WindowManager {
     private var previous: [WindowKey: CGRect] = [:]
-    private var cycles: [WindowKey: WindowCycle] = [:]
+    private var cycles: [WindowKey: WindowSnapCycle] = [:]
     var onFailure: ((String) -> Void)?
 
     func prune(liveWindows: [WindowInfo]) {
@@ -21,7 +21,11 @@ final class WindowManager {
         guard AXUIElementGetPid(window, &pid) == .success else { return }
         let key = WindowKey(pid: pid, element: window)
         guard let primary = NSScreen.screens.first else { return }
-        let screens = NSScreen.screens.map { WindowGeometry.accessibilityFrame(fromAppKit: $0.visibleFrame, primaryHeight: primary.frame.height) }
+        let displays = NSScreen.screens.map {
+            SnapDisplay(frame: WindowGeometry.accessibilityFrame(fromAppKit: $0.frame, primaryHeight: primary.frame.height),
+                        visible: WindowGeometry.accessibilityFrame(fromAppKit: $0.visibleFrame, primaryHeight: primary.frame.height))
+        }
+        let screens = displays.map(\.visible)
         guard let index = WindowGeometry.displayIndex(for: current, screens: screens) else { return }
         let target: CGRect
         if command == .restore {
@@ -35,16 +39,15 @@ final class WindowManager {
             target = WindowGeometry.moved(current, from: screens[index], to: screens[next])
             cycles[key] = nil
         } else {
-            var cycle = cycles[key] ?? WindowCycle()
-            let resolved = cycle.resolve(command, current: current)
-            target = WindowGeometry.frame(for: resolved, visible: screens[index], current: current)
+            var cycle = cycles[key] ?? WindowSnapCycle()
+            target = cycle.target(command, current: current, index: index, displays: displays)
             cycles[key] = cycle
         }
         let succeeded = AXAccess.setFrame(window, target)
-        if let actual = AXAccess.frame(window), !WindowGeometry.approximatelyEqual(current, actual, tolerance: 0.5) {
-            previous[key] = current
+        if let actual = AXAccess.frame(window) {
+            if !WindowGeometry.approximatelyEqual(current, actual, tolerance: 0.5) { previous[key] = current }
             cycles[key]?.didApply(actual)
-        }
+        } else { cycles[key] = nil }
         if !succeeded { Log.windows.debug("Window rejected part of a frame change") }
     }
 }

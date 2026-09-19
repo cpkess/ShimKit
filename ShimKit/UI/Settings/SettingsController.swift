@@ -112,7 +112,7 @@ private struct SettingsView: View {
                     }
                     Button("Restore Default Shortcuts") { shortcuts.reset() }
                 }
-                Text("Repeat Left or Right to cycle through half, two thirds, and one third. Shortcut letters use physical US keyboard positions.")
+                Text("Repeat a half-screen shortcut to cross a shared monitor edge. At an outer left or right edge, repeat to cycle half, two thirds, and one third. Shortcut letters use physical US keyboard positions.")
                     .font(.caption).foregroundStyle(.secondary)
             }.formStyle(.grouped)
             } else if selectedTab == 2 {
