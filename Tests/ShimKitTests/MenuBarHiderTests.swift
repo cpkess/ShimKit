@@ -3,6 +3,40 @@ import AppKit
 @testable import ShimKit
 
 final class MenuBarHiderTests: XCTestCase {
+    func testNativeOverflowKeepsEveryItemBelowWidthAndNotchLimits() {
+        let lengths = MenuBarHiderController.nativeOverflowLengths(screenWidths: [1728, 3840], trailingWidths: [771.5])
+        XCTAssertEqual(lengths.count, 7)
+        XCTAssertTrue(lengths.allSatisfy { $0 == 514 })
+        XCTAssertGreaterThan(lengths.reduce(0, +), 1728)
+        let normal = MenuBarHiderController.nativeOverflowLengths(screenWidths: [1440], trailingWidths: [])
+        XCTAssertGreaterThanOrEqual(normal.reduce(0, +), 1440)
+        XCTAssertTrue(normal.allSatisfy { $0 < 720 })
+        for widths: [CGFloat] in [[], [0, -1, .nan], [100]] {
+            let result = MenuBarHiderController.nativeOverflowLengths(screenWidths: widths, trailingWidths: [.nan])
+            XCTAssertTrue((1...7).contains(result.count))
+            XCTAssertTrue(result.allSatisfy { $0.isFinite && $0 > 0 })
+        }
+    }
+
+    func testNotchedDisplayUsesStatusAreaRatherThanHalfTheScreen() {
+        let sizes = MenuBarHiderController.nativeOverflowLengths(screenWidths: [1512], trailingWidths: [663.5])
+        XCTAssertTrue(sizes.allSatisfy { $0 < 520 })
+        XCTAssertGreaterThanOrEqual(sizes.reduce(0, +), 663.5)
+        XCTAssertEqual(sizes.count, 2)
+    }
+
+    func testMixedScreensStayBelowSmallestLimitAndCoverWidestStatusArea() {
+        let sizes = MenuBarHiderController.nativeOverflowLengths(screenWidths: [1728, 2560], trailingWidths: [771.5, 2560])
+        XCTAssertTrue(sizes.allSatisfy { $0 < 771.5 * 0.75 })
+        XCTAssertGreaterThanOrEqual(sizes.reduce(0, +), 2560)
+        XCTAssertLessThanOrEqual(sizes.count, 7)
+    }
+
+    func testNonNotchedScreensUseHalfWidthLimit() {
+        let sizes = MenuBarHiderController.nativeOverflowLengths(screenWidths: [3840], trailingWidths: [3840])
+        XCTAssertEqual(sizes, [1856, 1856, 1856])
+    }
+
     func testSpacerUsesWidestDisplayAndCapsExtremeSizes() {
         XCTAssertEqual(MenuBarHiderController.collapsedLength(screenWidths: [1440, 2560]), 5120)
         XCTAssertEqual(MenuBarHiderController.collapsedLength(screenWidths: [8000]), 10000)

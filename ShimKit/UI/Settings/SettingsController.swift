@@ -140,6 +140,9 @@ private struct SettingsView: View {
             } else if selectedTab == 4 {
             Form {
                 Toggle("Hide menu bar icons", isOn: $preferences.menuBarHiderEnabled)
+                if #available(macOS 27, *) {
+                    Text("On macOS 27, hidden icons move into the system’s overflow menu («). Use Show All to Arrange to bring the sections back. Keep the dividers and their spacers to the left of the arrow.").font(.caption).foregroundStyle(.secondary)
+                }
                 Section("Arrange your icons") {
                     Text("Hold Command and drag icons to the left of the │ divider to hide them. Keep the arrow to the right of the dividers. Click the arrow to hide or reveal icons.")
                     Text("With an always-hidden section, arrange left to right: always-hidden icons, first divider, hidden icons, second divider, arrow, visible icons.").font(.caption).foregroundStyle(.secondary)
